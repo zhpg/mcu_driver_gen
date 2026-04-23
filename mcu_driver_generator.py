@@ -284,25 +284,63 @@ class MCUDriverGenerator:
         header_tab = ttk.Frame(notebook)
         notebook.add(header_tab, text="头文件 (.h)")
         
+        # 创建行号和代码区域的框架
+        header_frame = ttk.Frame(header_tab)
+        header_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 行号显示
+        self.header_line_numbers = tk.Text(
+            header_frame, 
+            width=4, 
+            font=self.code_font, 
+            bg='#e8e8e8', 
+            fg='#888888', 
+            relief=tk.FLAT,
+            wrap=tk.NONE
+        )
+        self.header_line_numbers.pack(side=tk.LEFT, fill=tk.Y)
+        self.header_line_numbers.insert(tk.END, "1\n")
+        self.header_line_numbers.config(state=tk.DISABLED)
+        
+        # 代码显示
         self.header_text = scrolledtext.ScrolledText(
-            header_tab, 
+            header_frame, 
             font=self.code_font, 
             wrap=tk.WORD,
             bg='#f8f8f8'
         )
-        self.header_text.pack(fill=tk.BOTH, expand=True)
+        self.header_text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
         # 源文件标签页
         source_tab = ttk.Frame(notebook)
         notebook.add(source_tab, text="源文件 (.c/.cpp)")
         
+        # 创建行号和代码区域的框架
+        source_frame = ttk.Frame(source_tab)
+        source_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 行号显示
+        self.source_line_numbers = tk.Text(
+            source_frame, 
+            width=4, 
+            font=self.code_font, 
+            bg='#e8e8e8', 
+            fg='#888888', 
+            relief=tk.FLAT,
+            wrap=tk.NONE
+        )
+        self.source_line_numbers.pack(side=tk.LEFT, fill=tk.Y)
+        self.source_line_numbers.insert(tk.END, "1\n")
+        self.source_line_numbers.config(state=tk.DISABLED)
+        
+        # 代码显示
         self.source_text = scrolledtext.ScrolledText(
-            source_tab, 
+            source_frame, 
             font=self.code_font, 
             wrap=tk.WORD,
             bg='#f8f8f8'
         )
-        self.source_text.pack(fill=tk.BOTH, expand=True)
+        self.source_text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
         # 绑定事件
         mcu_combobox.bind("<<ComboboxSelected>>", self.on_mcu_change)
@@ -314,6 +352,18 @@ class MCUDriverGenerator:
         for peripheral, params in self.peripheral_params.items():
             for param_name, param_var in params.items():
                 param_var.trace_add("write", self.update_preview)
+        
+        # 绑定代码文本框的事件
+        self.header_text.bind("<<Modified>>", self.update_line_numbers)
+        self.source_text.bind("<<Modified>>", self.update_line_numbers)
+        
+        # 绑定滚动事件，保持行号与代码同步
+        self.header_text.bind("<MouseWheel>", self.sync_scroll)
+        self.source_text.bind("<MouseWheel>", self.sync_scroll)
+        self.header_text.bind("<Up>", self.sync_scroll)
+        self.source_text.bind("<Up>", self.sync_scroll)
+        self.header_text.bind("<Down>", self.sync_scroll)
+        self.source_text.bind("<Down>", self.sync_scroll)
         
         # 配置样式
         style = ttk.Style()
@@ -367,6 +417,9 @@ class MCUDriverGenerator:
             # 显示生成的代码
             self.header_text.insert(tk.END, header_code)
             self.source_text.insert(tk.END, source_code)
+            
+            # 更新行号
+            self.update_line_numbers(None)
             
             # 简单的语法高亮
             self.highlight_syntax()
@@ -2604,7 +2657,34 @@ class MCUDriverGenerator:
                     start = end
                 else:
                     start = pos + "+1c"
+
+    def update_line_numbers(self, event):
+        """更新行号显示"""
+        # 更新头文件行号
+        self.header_line_numbers.config(state=tk.NORMAL)
+        self.header_line_numbers.delete(1.0, tk.END)
+        line_count = int(self.header_text.index('end-1c').split('.')[0])
+        for i in range(1, line_count + 1):
+            self.header_line_numbers.insert(tk.END, f"{i}\n")
+        self.header_line_numbers.config(state=tk.DISABLED)
+        
+        # 更新源文件行号
+        self.source_line_numbers.config(state=tk.NORMAL)
+        self.source_line_numbers.delete(1.0, tk.END)
+        line_count = int(self.source_text.index('end-1c').split('.')[0])
+        for i in range(1, line_count + 1):
+            self.source_line_numbers.insert(tk.END, f"{i}\n")
+        self.source_line_numbers.config(state=tk.DISABLED)
     
+    def sync_scroll(self, event):
+        """同步滚动行号和代码"""
+        # 同步头文件滚动
+        if event.widget == self.header_text:
+            self.header_line_numbers.yview_moveto(self.header_text.yview()[0])
+        # 同步源文件滚动
+        elif event.widget == self.source_text:
+            self.source_line_numbers.yview_moveto(self.source_text.yview()[0])
+
     def copy_code(self):
         """复制代码到剪贴板"""
         # 获取头文件和源文件内容
