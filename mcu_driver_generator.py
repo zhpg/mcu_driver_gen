@@ -954,6 +954,63 @@ class MCUDriverGenerator:
         # 使用传入的外设参数
         # params = self.peripheral_params[peripheral]
         
+        # 辅助函数：解析引脚
+        def parse_pin(pin):
+            port = pin[1] if pin[0] == "P" else pin[0]
+            pin_num = pin[2:] if pin[0] == "P" else pin[1:]
+            return port, pin_num
+        
+        # 辅助函数：获取端口映射
+        def get_port_map():
+            return {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+        
+        # 辅助函数：获取引脚映射
+        def get_pin_map():
+            return {"0": "GPIO_Pin_0", "1": "GPIO_Pin_1", "2": "GPIO_Pin_2", "3": "GPIO_Pin_3", "4": "GPIO_Pin_4", "5": "GPIO_Pin_5", "6": "GPIO_Pin_6", "7": "GPIO_Pin_7", "8": "GPIO_Pin_8", "9": "GPIO_Pin_9", "10": "GPIO_Pin_10", "11": "GPIO_Pin_11", "12": "GPIO_Pin_12", "13": "GPIO_Pin_13", "14": "GPIO_Pin_14", "15": "GPIO_Pin_15"}
+        
+        # 辅助函数：获取RCC映射
+        def get_rcc_map():
+            return {"A": "RCC_APB2Periph_GPIOA", "B": "RCC_APB2Periph_GPIOB", "C": "RCC_APB2Periph_GPIOC", "D": "RCC_APB2Periph_GPIOD"}
+        
+        # 跟踪已使能的端口时钟
+        enabled_ports = set()
+        # 跟踪已定义的结构体类型
+        defined_structs = set()
+        
+        # 辅助函数：为标准库使能GPIO时钟
+        def enable_gpio_clock_std(port):
+            if port not in enabled_ports:
+                enabled_ports.add(port)
+                rcc_map = get_rcc_map()
+                return f"    RCC_APB2PeriphClockCmd({rcc_map[port]}, ENABLE);  // 使能{get_port_map()[port]}时钟"
+            return None
+        
+        # 辅助函数：为HAL库使能GPIO时钟
+        def enable_gpio_clock_hal(port):
+            if port not in enabled_ports:
+                enabled_ports.add(port)
+                return f"    __HAL_RCC_{get_port_map()[port]}_CLK_ENABLE();  // 使能{get_port_map()[port]}时钟"
+            return None
+        
+        # 辅助函数：为LL库使能GPIO时钟
+        def enable_gpio_clock_ll(port):
+            if port not in enabled_ports:
+                enabled_ports.add(port)
+                return f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{port.upper()});  // 使能{get_port_map()[port]}时钟"
+            return None
+        
+        # 辅助函数：添加结构体定义（确保只定义一次）
+        def add_struct_def(struct_type, comment):
+            if struct_type not in defined_structs:
+                defined_structs.add(struct_type)
+                return f"    {struct_type};  // {comment}"
+            return None
+        
+        # 辅助函数：添加代码行，自动处理空行
+        def add_code_line(line):
+            if line:
+                source_code.append(line)
+        
         # 根据库函数类型生成初始化代码
         if lib_type == "标准库":
             # 标准库初始化代码
@@ -964,26 +1021,22 @@ class MCUDriverGenerator:
                 pull = params["pull"]
                 
                 # 解析引脚
-                # 假设引脚格式为"PA0"，提取端口字母"A"
-                port = pin[1] if pin[0] == "P" else pin[0]
-                pin_num = pin[2:] if pin[0] == "P" else pin[1:]
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
-                rcc_map = {"A": "RCC_APB2Periph_GPIOA", "B": "RCC_APB2Periph_GPIOB", "C": "RCC_APB2Periph_GPIOC", "D": "RCC_APB2Periph_GPIOD"}
-                pin_map = {"0": "GPIO_Pin_0", "1": "GPIO_Pin_1", "2": "GPIO_Pin_2", "3": "GPIO_Pin_3", "4": "GPIO_Pin_4", "5": "GPIO_Pin_5", "6": "GPIO_Pin_6", "7": "GPIO_Pin_7", "8": "GPIO_Pin_8", "9": "GPIO_Pin_9", "10": "GPIO_Pin_10", "11": "GPIO_Pin_11", "12": "GPIO_Pin_12", "13": "GPIO_Pin_13", "14": "GPIO_Pin_14", "15": "GPIO_Pin_15"}
+                port, pin_num = parse_pin(pin)
+                port_map = get_port_map()
+                rcc_map = get_rcc_map()
+                pin_map = get_pin_map()
                 
                 mode_map = {"输入": "GPIO_Mode_IN_FLOATING", "输出": "GPIO_Mode_Out_PP"}
                 pull_map = {"无": "", "上拉": "GPIO_Mode_IPU", "下拉": "GPIO_Mode_IPD"}
                 
-                source_code.extend([
-                    "    // GPIO初始化函数",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
-                    "    ",
-                    "    // 使能GPIO时钟",
-                    f"    RCC_APB2PeriphClockCmd({rcc_map[port]}, ENABLE);  // 使能{port_map[port]}端口时钟",
-                    "    ",
-                    "    // 配置GPIO引脚参数",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[pin_num]};  // 选择引脚{pin}",
-                ])
+                source_code.append("    // GPIO初始化函数")
+                add_code_line(add_struct_def("GPIO_InitTypeDef GPIO_InitStruct", "定义GPIO初始化结构体变量"))
+                source_code.append("    ")
+                source_code.append("    // 使能GPIO时钟")
+                add_code_line(enable_gpio_clock_std(port))
+                source_code.append("    ")
+                source_code.append("    // 配置GPIO引脚参数")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[pin_num]};  // 选择引脚{pin}")
                 
                 if mode == "输入":
                     if pull != "无":
@@ -1011,101 +1064,158 @@ class MCUDriverGenerator:
                 rx_pin = params["rx_pin"]
                 
                 # 解析引脚
-                tx_port = tx_pin[1] if tx_pin[0] == 'P' else tx_pin[0]
-                tx_num = tx_pin[2:] if tx_pin[0] == 'P' else tx_pin[1:]
-                rx_port = rx_pin[1] if rx_pin[0] == 'P' else rx_pin[0]
-                rx_num = rx_pin[2:] if rx_pin[0] == 'P' else rx_pin[1:]
+                tx_port, tx_num = parse_pin(tx_pin)
+                rx_port, rx_num = parse_pin(rx_pin)
                 
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
-                pin_map = {"0": "GPIO_Pin_0", "1": "GPIO_Pin_1", "2": "GPIO_Pin_2", "3": "GPIO_Pin_3", "4": "GPIO_Pin_4", "5": "GPIO_Pin_5", "6": "GPIO_Pin_6", "7": "GPIO_Pin_7", "8": "GPIO_Pin_8", "9": "GPIO_Pin_9", "10": "GPIO_Pin_10", "11": "GPIO_Pin_11", "12": "GPIO_Pin_12", "13": "GPIO_Pin_13", "14": "GPIO_Pin_14", "15": "GPIO_Pin_15"}
+                port_map = get_port_map()
+                pin_map = get_pin_map()
                 
                 data_bits_map = {"8位": "USART_WordLength_8b", "9位": "USART_WordLength_9b"}
                 parity_map = {"无校验": "USART_Parity_No", "奇校验": "USART_Parity_Odd", "偶校验": "USART_Parity_Even"}
                 stop_bits_map = {"1位": "USART_StopBits_1", "0.5位": "USART_StopBits_0_5", "2位": "USART_StopBits_2", "1.5位": "USART_StopBits_1_5"}
                 flow_control_map = {"关闭": "USART_HardwareFlowControl_None", "开启": "USART_HardwareFlowControl_RTS_CTS"}
                 
-                source_code.extend([
-                    "    // UART初始化函数",
-                    "    USART_InitTypeDef USART_InitStruct;  // 定义UART初始化结构体变量",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
-                    "    ",
-                    "    // 使能时钟",
-                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);  // 使能USART1时钟",
-                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_{port_map[tx_port]}, ENABLE);  // 使能{port_map[tx_port]}时钟",
-                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_{port_map[rx_port]}, ENABLE);  // 使能{port_map[rx_port]}时钟",
-                    "    ",
-                    "    // 配置TX引脚",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[tx_num]};  // 选择{tx_pin}引脚作为TX",
-                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;  // 配置为复用推挽输出模式",
-                    "    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz",
-                    f"    GPIO_Init({port_map[tx_port]}, &GPIO_InitStruct);  // 应用GPIO配置",
-                    "    ",
-                    "    // 配置RX引脚",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[rx_num]};  // 选择{rx_pin}引脚作为RX",
-                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;  // 配置为浮空输入模式",
-                    f"    GPIO_Init({port_map[rx_port]}, &GPIO_InitStruct);  // 应用GPIO配置",
-                    "    ",
-                    "    // 配置UART参数",
-                    f"    USART_InitStruct.USART_BaudRate = {baudrate};  // 设置波特率为{baudrate}",
-                    f"    USART_InitStruct.USART_WordLength = {data_bits_map[data_bits]};  // 设置数据位为{data_bits}",
-                    f"    USART_InitStruct.USART_StopBits = {stop_bits_map[stop_bits]};  // 设置停止位为{stop_bits}",
-                    f"    USART_InitStruct.USART_Parity = {parity_map[parity]};  // 设置校验位为{parity}",
-                    f"    USART_InitStruct.USART_HardwareFlowControl = {flow_control_map[flow_control]};  // 设置硬件流控制为{flow_control}",
-                    "    USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;  // 使能接收和发送模式",
-                    "    USART_Init(USART1, &USART_InitStruct);  // 应用UART配置",
-                    "    ",
-                    "    // 使能UART",
-                    "    USART_Cmd(USART1, ENABLE);  // 使能USART1外设"
-                ])
+                source_code.append("    // UART初始化函数")
+                add_code_line(add_struct_def("USART_InitTypeDef USART_InitStruct", "定义UART初始化结构体变量"))
+                add_code_line(add_struct_def("GPIO_InitTypeDef GPIO_InitStruct", "定义GPIO初始化结构体变量"))
+                source_code.append("    ")
+                source_code.append("    // 使能时钟")
+                source_code.append("    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);  // 使能USART1时钟")
+                add_code_line(enable_gpio_clock_std(tx_port))
+                add_code_line(enable_gpio_clock_std(rx_port))
+                source_code.append("    ")
+                source_code.append("    // 配置TX引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[tx_num]};  // 选择{tx_pin}引脚作为TX")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;  // 配置为复用推挽输出模式")
+                source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                source_code.append(f"    GPIO_Init({port_map[tx_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置RX引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[rx_num]};  // 选择{rx_pin}引脚作为RX")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;  // 配置为浮空输入模式")
+                source_code.append(f"    GPIO_Init({port_map[rx_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置UART参数")
+                source_code.append(f"    USART_InitStruct.USART_BaudRate = {baudrate};  // 设置波特率为{baudrate}")
+                source_code.append(f"    USART_InitStruct.USART_WordLength = {data_bits_map[data_bits]};  // 设置数据位为{data_bits}")
+                source_code.append(f"    USART_InitStruct.USART_StopBits = {stop_bits_map[stop_bits]};  // 设置停止位为{stop_bits}")
+                source_code.append(f"    USART_InitStruct.USART_Parity = {parity_map[parity]};  // 设置校验位为{parity}")
+                source_code.append(f"    USART_InitStruct.USART_HardwareFlowControl = {flow_control_map[flow_control]};  // 设置硬件流控制为{flow_control}")
+                source_code.append("    USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;  // 使能接收和发送模式")
+                source_code.append("    USART_Init(USART1, &USART_InitStruct);  // 应用UART配置")
+                source_code.append("    ")
+                source_code.append("    // 使能UART")
+                source_code.append("    USART_Cmd(USART1, ENABLE);  // 使能USART1外设")
             
             elif peripheral == "I2C":
                 scl_pin = params["scl_pin"]
                 sda_pin = params["sda_pin"]
                 
                 # 解析引脚
-                scl_port = scl_pin[1] if scl_pin[0] == 'P' else scl_pin[0]
-                scl_num = scl_pin[2:] if scl_pin[0] == 'P' else scl_pin[1:]
-                sda_port = sda_pin[1] if sda_pin[0] == 'P' else sda_pin[0]
-                sda_num = sda_pin[2:] if sda_pin[0] == 'P' else sda_pin[1:]
+                scl_port, scl_num = parse_pin(scl_pin)
+                sda_port, sda_num = parse_pin(sda_pin)
                 
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
-                pin_map = {"0": "GPIO_Pin_0", "1": "GPIO_Pin_1", "2": "GPIO_Pin_2", "3": "GPIO_Pin_3", "4": "GPIO_Pin_4", "5": "GPIO_Pin_5", "6": "GPIO_Pin_6", "7": "GPIO_Pin_7", "8": "GPIO_Pin_8", "9": "GPIO_Pin_9", "10": "GPIO_Pin_10", "11": "GPIO_Pin_11", "12": "GPIO_Pin_12", "13": "GPIO_Pin_13", "14": "GPIO_Pin_14", "15": "GPIO_Pin_15"}
+                port_map = get_port_map()
+                pin_map = get_pin_map()
                 
-                source_code.extend([
-                    "    // I2C初始化函数",
-                    "    I2C_InitTypeDef I2C_InitStruct;  // 定义I2C初始化结构体变量",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
-                    "    ",
-                    "    // 使能时钟",
-                    "    RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);  // 使能I2C1时钟",
-                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_{port_map[scl_port]}, ENABLE);  // 使能{port_map[scl_port]}时钟",
-                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_{port_map[sda_port]}, ENABLE);  // 使能{port_map[sda_port]}时钟",
-                    "    ",
-                    "    // 配置SCL引脚",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[scl_num]};  // 选择{scl_pin}引脚作为SCL",
-                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_OD;  // 配置为复用开漏输出模式",
-                    "    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz",
-                    f"    GPIO_Init({port_map[scl_port]}, &GPIO_InitStruct);  // 应用GPIO配置",
-                    "    ",
-                    "    // 配置SDA引脚",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[sda_num]};  // 选择{sda_pin}引脚作为SDA",
-                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_OD;  // 配置为复用开漏输出模式",
-                    "    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz",
-                    f"    GPIO_Init({port_map[sda_port]}, &GPIO_InitStruct);  // 应用GPIO配置",
-                    "    ",
-                    "    // 配置I2C参数",
-                    "    I2C_DeInit(I2C1);  // 复位I2C1",
-                    "    I2C_InitStruct.I2C_Mode = I2C_Mode_I2C;  // 设置I2C模式为I2C",
-                    "    I2C_InitStruct.I2C_DutyCycle = I2C_DutyCycle_2;  // 设置占空比为2",
-                    "    I2C_InitStruct.I2C_OwnAddress1 = 0x00;  // 设置自身地址为0x00",
-                    "    I2C_InitStruct.I2C_Ack = I2C_Ack_Enable;  // 使能应答",
-                    "    I2C_InitStruct.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;  // 设置地址长度为7位",
-                    "    I2C_InitStruct.I2C_ClockSpeed = 100000;  // 设置时钟速度为100kHz",
-                    "    I2C_Init(I2C1, &I2C_InitStruct);  // 应用I2C配置",
-                    "    ",
-                    "    // 使能I2C",
-                    "    I2C_Cmd(I2C1, ENABLE);  // 使能I2C1外设"
-                ])
+                source_code.append("    // I2C初始化函数")
+                add_code_line(add_struct_def("I2C_InitTypeDef I2C_InitStruct", "定义I2C初始化结构体变量"))
+                add_code_line(add_struct_def("GPIO_InitTypeDef GPIO_InitStruct", "定义GPIO初始化结构体变量"))
+                source_code.append("    ")
+                source_code.append("    // 使能时钟")
+                source_code.append("    RCC_APB1PeriphClockCmd(RCC_APB1Periph_I2C1, ENABLE);  // 使能I2C1时钟")
+                add_code_line(enable_gpio_clock_std(scl_port))
+                add_code_line(enable_gpio_clock_std(sda_port))
+                source_code.append("    ")
+                source_code.append("    // 配置SCL引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[scl_num]};  // 选择{scl_pin}引脚作为SCL")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_OD;  // 配置为复用开漏输出模式")
+                source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                source_code.append(f"    GPIO_Init({port_map[scl_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置SDA引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[sda_num]};  // 选择{sda_pin}引脚作为SDA")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_OD;  // 配置为复用开漏输出模式")
+                source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                source_code.append(f"    GPIO_Init({port_map[sda_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置I2C参数")
+                source_code.append("    I2C_DeInit(I2C1);  // 复位I2C1")
+                source_code.append("    I2C_InitStruct.I2C_Mode = I2C_Mode_I2C;  // 设置I2C模式为I2C")
+                source_code.append("    I2C_InitStruct.I2C_DutyCycle = I2C_DutyCycle_2;  // 设置占空比为2")
+                source_code.append("    I2C_InitStruct.I2C_OwnAddress1 = 0x00;  // 设置自身地址为0x00")
+                source_code.append("    I2C_InitStruct.I2C_Ack = I2C_Ack_Enable;  // 使能应答")
+                source_code.append("    I2C_InitStruct.I2C_AcknowledgedAddress = I2C_AcknowledgedAddress_7bit;  // 设置地址长度为7位")
+                source_code.append("    I2C_InitStruct.I2C_ClockSpeed = 100000;  // 设置时钟速度为100kHz")
+                source_code.append("    I2C_Init(I2C1, &I2C_InitStruct);  // 应用I2C配置")
+                source_code.append("    ")
+                source_code.append("    // 使能I2C")
+                source_code.append("    I2C_Cmd(I2C1, ENABLE);  // 使能I2C1外设")
+            elif peripheral == "SPI":
+                sck_pin = params.get("sck_pin", "PA5")
+                miso_pin = params.get("miso_pin", "PA6")
+                mosi_pin = params.get("mosi_pin", "PA7")
+                cs_pin = params.get("cs_pin", "PA4")
+                
+                # 解析引脚
+                sck_port, sck_num = parse_pin(sck_pin)
+                miso_port, miso_num = parse_pin(miso_pin)
+                mosi_port, mosi_num = parse_pin(mosi_pin)
+                cs_port, cs_num = parse_pin(cs_pin)
+                
+                port_map = get_port_map()
+                pin_map = get_pin_map()
+                
+                source_code.append("    // SPI初始化函数")
+                add_code_line(add_struct_def("SPI_InitTypeDef SPI_InitStruct", "定义SPI初始化结构体变量"))
+                add_code_line(add_struct_def("GPIO_InitTypeDef GPIO_InitStruct", "定义GPIO初始化结构体变量"))
+                source_code.append("    ")
+                source_code.append("    // 使能时钟")
+                source_code.append("    RCC_APB2PeriphClockCmd(RCC_APB2Periph_SPI1, ENABLE);  // 使能SPI1时钟")
+                add_code_line(enable_gpio_clock_std(sck_port))
+                add_code_line(enable_gpio_clock_std(miso_port))
+                add_code_line(enable_gpio_clock_std(mosi_port))
+                add_code_line(enable_gpio_clock_std(cs_port))
+                source_code.append("    ")
+                source_code.append("    // 配置SCK引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[sck_num]};  // 选择{sck_pin}引脚作为SCK")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;  // 配置为复用推挽输出模式")
+                source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                source_code.append(f"    GPIO_Init({port_map[sck_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置MISO引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[miso_num]};  // 选择{miso_pin}引脚作为MISO")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;  // 配置为浮空输入模式")
+                source_code.append(f"    GPIO_Init({port_map[miso_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置MOSI引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[mosi_num]};  // 选择{mosi_pin}引脚作为MOSI")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;  // 配置为复用推挽输出模式")
+                source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                source_code.append(f"    GPIO_Init({port_map[mosi_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append("    ")
+                source_code.append("    // 配置CS引脚")
+                source_code.append(f"    GPIO_InitStruct.GPIO_Pin = {pin_map[cs_num]};  // 选择{cs_pin}引脚作为CS")
+                source_code.append("    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_Out_PP;  // 配置为推挽输出模式")
+                source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                source_code.append(f"    GPIO_Init({port_map[cs_port]}, &GPIO_InitStruct);  // 应用GPIO配置")
+                source_code.append(f"    GPIO_SetBits({port_map[cs_port]}, {pin_map[cs_num]});  // CS初始化为高电平")
+                source_code.append("    ")
+                source_code.append("    // 配置SPI参数")
+                source_code.append("    SPI_DeInit(SPI1);  // 复位SPI1")
+                source_code.append("    SPI_InitStruct.SPI_Direction = SPI_Direction_2Lines_FullDuplex;  // 设置为全双工模式")
+                source_code.append("    SPI_InitStruct.SPI_Mode = SPI_Mode_Master;  // 设置为主机模式")
+                source_code.append("    SPI_InitStruct.SPI_DataSize = SPI_DataSize_8b;  // 设置数据宽度为8位")
+                source_code.append("    SPI_InitStruct.SPI_CPOL = SPI_CPOL_High;  // 设置时钟极性为高")
+                source_code.append("    SPI_InitStruct.SPI_CPHA = SPI_CPHA_2Edge;  // 设置时钟相位为第二个边沿")
+                source_code.append("    SPI_InitStruct.SPI_NSS = SPI_NSS_Soft;  // 使用软件NSS")
+                source_code.append("    SPI_InitStruct.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_4;  // 设置波特率预分频为4")
+                source_code.append("    SPI_InitStruct.SPI_FirstBit = SPI_FirstBit_MSB;  // 设置高位先发送")
+                source_code.append("    SPI_InitStruct.SPI_CRCPolynomial = 7;  // 设置CRC多项式")
+                source_code.append("    SPI_Init(SPI1, &SPI_InitStruct);  // 应用SPI配置")
+                source_code.append("    ")
+                source_code.append("    // 使能SPI")
+                source_code.append("    SPI_Cmd(SPI1, ENABLE);  // 使能SPI1外设")
             # 其他外设的标准库初始化代码...
             
         elif lib_type == "HAL库":
@@ -1117,10 +1227,9 @@ class MCUDriverGenerator:
                 pull = params["pull"]
                 
                 # 解析引脚
-                # 假设引脚格式为"PA0"，提取端口字母"A"
-                port = pin[1] if pin[0] == "P" else pin[0]
-                pin_num = int(pin[2:] if pin[0] == "P" else pin[1:])
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                port, pin_num = parse_pin(pin)
+                pin_num = int(pin_num)
+                port_map = get_port_map()
                 
                 mode_map = {"输入": "GPIO_MODE_INPUT", "输出": "GPIO_MODE_OUTPUT_PP"}
                 pull_map = {"无": "GPIO_NOPULL", "上拉": "GPIO_PULLUP", "下拉": "GPIO_PULLDOWN"}
@@ -1130,7 +1239,7 @@ class MCUDriverGenerator:
                     "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
                     "    ",
                     "    // 使能GPIO时钟",
-                    f"    __HAL_RCC_{port_map[port]}_CLK_ENABLE();  // 使能{port_map[port]}端口时钟",
+                    enable_gpio_clock_hal(port),
                     "    ",
                     "    // 配置GPIO引脚参数",
                     f"    GPIO_InitStruct.Pin = GPIO_PIN_{pin_num};  // 选择{pin}引脚",
@@ -1158,13 +1267,12 @@ class MCUDriverGenerator:
                 rx_pin = params["rx_pin"]
                 
                 # 解析引脚
-                # 假设引脚格式为"PA0"，提取端口字母"A"
-                tx_port = tx_pin[1] if tx_pin[0] == "P" else tx_pin[0]
-                tx_num = int(tx_pin[2:] if tx_pin[0] == "P" else tx_pin[1:])
-                rx_port = rx_pin[1] if rx_pin[0] == "P" else rx_pin[0]
-                rx_num = int(rx_pin[2:] if rx_pin[0] == "P" else rx_pin[1:])
+                tx_port, tx_num = parse_pin(tx_pin)
+                tx_num = int(tx_num)
+                rx_port, rx_num = parse_pin(rx_pin)
+                rx_num = int(rx_num)
                 
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                port_map = get_port_map()
                 
                 data_bits_map = {"8位": "UART_WORDLENGTH_8B", "9位": "UART_WORDLENGTH_9B"}
                 parity_map = {"无校验": "UART_PARITY_NONE", "奇校验": "UART_PARITY_ODD", "偶校验": "UART_PARITY_EVEN"}
@@ -1178,8 +1286,8 @@ class MCUDriverGenerator:
                     "    ",
                     "    // 使能时钟",
                     "    __HAL_RCC_USART1_CLK_ENABLE();",
-                    f"    __HAL_RCC_{port_map[tx_port]}_CLK_ENABLE();",
-                    f"    __HAL_RCC_{port_map[rx_port]}_CLK_ENABLE();",
+                    enable_gpio_clock_hal(tx_port),
+                    enable_gpio_clock_hal(rx_port),
                     "    ",
                     "    // 复用功能初始化",
                     "    // 配置GPIO",
@@ -1218,12 +1326,12 @@ class MCUDriverGenerator:
                 sda_pin = params["sda_pin"]
                 
                 # 解析引脚
-                scl_port = scl_pin[1] if scl_pin[0] == "P" else scl_pin[0]
-                scl_num = int(scl_pin[2:] if scl_pin[0] == "P" else scl_pin[1:])
-                sda_port = sda_pin[1] if sda_pin[0] == "P" else sda_pin[0]
-                sda_num = int(sda_pin[2:] if sda_pin[0] == "P" else sda_pin[1:])
+                scl_port, scl_num = parse_pin(scl_pin)
+                scl_num = int(scl_num)
+                sda_port, sda_num = parse_pin(sda_pin)
+                sda_num = int(sda_num)
                 
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                port_map = get_port_map()
                 
                 source_code.extend([
                     "    // I2C初始化",
@@ -1232,8 +1340,8 @@ class MCUDriverGenerator:
                     "    ",
                     "    // 使能时钟",
                     "    __HAL_RCC_I2C1_CLK_ENABLE();",
-                    f"    __HAL_RCC_{port_map[scl_port]}_CLK_ENABLE();",
-                    f"    __HAL_RCC_{port_map[sda_port]}_CLK_ENABLE();",
+                    enable_gpio_clock_hal(scl_port),
+                    enable_gpio_clock_hal(sda_port),
                     "    ",
                     "    // 复用功能初始化",
                     "    // 配置SCL引脚",
@@ -1268,6 +1376,87 @@ class MCUDriverGenerator:
                     "        while(1);",
                     "    }"
                 ])
+            elif peripheral == "SPI":
+                sck_pin = params.get("sck_pin", "PA5")
+                miso_pin = params.get("miso_pin", "PA6")
+                mosi_pin = params.get("mosi_pin", "PA7")
+                cs_pin = params.get("cs_pin", "PA4")
+                
+                # 解析引脚
+                sck_port, sck_num = parse_pin(sck_pin)
+                sck_num = int(sck_num)
+                miso_port, miso_num = parse_pin(miso_pin)
+                miso_num = int(miso_num)
+                mosi_port, mosi_num = parse_pin(mosi_pin)
+                mosi_num = int(mosi_num)
+                cs_port, cs_num = parse_pin(cs_pin)
+                cs_num = int(cs_num)
+                
+                port_map = get_port_map()
+                
+                source_code.extend([
+                    "    // SPI初始化",
+                    "    SPI_HandleTypeDef hspi;",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;",
+                    "    ",
+                    "    // 使能时钟",
+                    "    __HAL_RCC_SPI1_CLK_ENABLE();",
+                    enable_gpio_clock_hal(sck_port),
+                    enable_gpio_clock_hal(miso_port),
+                    enable_gpio_clock_hal(mosi_port),
+                    enable_gpio_clock_hal(cs_port),
+                    "    ",
+                    "    // 配置SCK引脚",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{sck_num}; // SCK",
+                    "    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;",
+                    "    GPIO_InitStruct.Pull = GPIO_NOPULL;",
+                    "    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;",
+                    "    GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;",
+                    f"    HAL_GPIO_Init({port_map[sck_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    "    // 配置MISO引脚",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{miso_num}; // MISO",
+                    "    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;",
+                    "    GPIO_InitStruct.Pull = GPIO_NOPULL;",
+                    "    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;",
+                    "    GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;",
+                    f"    HAL_GPIO_Init({port_map[miso_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    "    // 配置MOSI引脚",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{mosi_num}; // MOSI",
+                    "    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;",
+                    "    GPIO_InitStruct.Pull = GPIO_NOPULL;",
+                    "    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;",
+                    "    GPIO_InitStruct.Alternate = GPIO_AF5_SPI1;",
+                    f"    HAL_GPIO_Init({port_map[mosi_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    "    // 配置CS引脚",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{cs_num}; // CS",
+                    "    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;",
+                    "    GPIO_InitStruct.Pull = GPIO_NOPULL;",
+                    "    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;",
+                    f"    HAL_GPIO_Init({port_map[cs_port]}, &GPIO_InitStruct);",
+                    f"    HAL_GPIO_WritePin({port_map[cs_port]}, GPIO_PIN_{cs_num}, GPIO_PIN_SET); // CS初始化为高电平",
+                    "    ",
+                    "    // 配置SPI",
+                    "    hspi.Instance = SPI1;",
+                    "    hspi.Init.Mode = SPI_MODE_MASTER;",
+                    "    hspi.Init.Direction = SPI_DIRECTION_2LINES;",
+                    "    hspi.Init.DataSize = SPI_DATASIZE_8BIT;",
+                    "    hspi.Init.CLKPolarity = SPI_POLARITY_HIGH;",
+                    "    hspi.Init.CLKPhase = SPI_PHASE_2EDGE;",
+                    "    hspi.Init.NSS = SPI_NSS_SOFT;",
+                    "    hspi.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;",
+                    "    hspi.Init.FirstBit = SPI_FIRSTBIT_MSB;",
+                    "    hspi.Init.TIMode = SPI_TIMODE_DISABLE;",
+                    "    hspi.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;",
+                    "    hspi.Init.CRCPolynomial = 10;",
+                    "    if (HAL_SPI_Init(&hspi) != HAL_OK)",
+                    "    {",
+                    "        // 初始化错误处理",
+                    "        while(1);",
+                    "    }"
+                ])
             # 其他外设的HAL库初始化代码...
             
         elif lib_type == "LL库":
@@ -1279,10 +1468,9 @@ class MCUDriverGenerator:
                 pull = params["pull"]
                 
                 # 解析引脚
-                # 假设引脚格式为"PA0"，提取端口字母"A"
-                port = pin[1] if pin[0] == "P" else pin[0]
-                pin_num = int(pin[2:] if pin[0] == "P" else pin[1:])
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                port, pin_num = parse_pin(pin)
+                pin_num = int(pin_num)
+                port_map = get_port_map()
                 
                 mode_map = {"输入": "LL_GPIO_MODE_INPUT", "输出": "LL_GPIO_MODE_OUTPUT"}
                 pull_map = {"无": "LL_GPIO_PULL_NO", "上拉": "LL_GPIO_PULL_UP", "下拉": "LL_GPIO_PULL_DOWN"}
@@ -1291,7 +1479,7 @@ class MCUDriverGenerator:
                     "    // GPIO初始化函数",
                     "    ",
                     "    // 使能GPIO时钟",
-                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{port.upper()});  // 使能{port_map[port]}端口时钟",
+                    enable_gpio_clock_ll(port),
                     "    ",
                     "    // 配置GPIO引脚参数",
                     f"    LL_GPIO_SetPinMode({port_map[port]}, LL_GPIO_PIN_{pin_num}, {mode_map[mode]});  // 配置{mode}模式",
@@ -1317,12 +1505,12 @@ class MCUDriverGenerator:
                 rx_pin = params["rx_pin"]
                 
                 # 解析引脚
-                tx_port = tx_pin[1] if tx_pin[0] == 'P' else tx_pin[0]
-                tx_num = int(tx_pin[2:] if tx_pin[0] == 'P' else tx_pin[1:])
-                rx_port = rx_pin[1] if rx_pin[0] == 'P' else rx_pin[0]
-                rx_num = int(rx_pin[2:] if rx_pin[0] == 'P' else rx_pin[1:])
+                tx_port, tx_num = parse_pin(tx_pin)
+                tx_num = int(tx_num)
+                rx_port, rx_num = parse_pin(rx_pin)
+                rx_num = int(rx_num)
                 
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                port_map = get_port_map()
                 
                 data_bits_map = {"8位": "LL_USART_DATAWIDTH_8B", "9位": "LL_USART_DATAWIDTH_9B"}
                 parity_map = {"无校验": "LL_USART_PARITY_NONE", "奇校验": "LL_USART_PARITY_ODD", "偶校验": "LL_USART_PARITY_EVEN"}
@@ -1334,8 +1522,8 @@ class MCUDriverGenerator:
                     "    ",
                     "    // 使能时钟",
                     "    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_USART1);  // 使能USART1时钟",
-                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{tx_port.upper()});  // 使能{port_map[tx_port]}时钟",
-                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{rx_port.upper()});  // 使能{port_map[rx_port]}时钟",
+                    enable_gpio_clock_ll(tx_port),
+                    enable_gpio_clock_ll(rx_port),
                     "    ",
                     "    // 配置TX引脚",
                     f"    LL_GPIO_SetPinMode({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
@@ -1369,12 +1557,12 @@ class MCUDriverGenerator:
                 sda_pin = params["sda_pin"]
                 
                 # 解析引脚
-                scl_port = scl_pin[1] if scl_pin[0] == 'P' else scl_pin[0]
-                scl_num = int(scl_pin[2:] if scl_pin[0] == 'P' else scl_pin[1:])
-                sda_port = sda_pin[1] if sda_pin[0] == 'P' else sda_pin[0]
-                sda_num = int(sda_pin[2:] if sda_pin[0] == 'P' else sda_pin[1:])
+                scl_port, scl_num = parse_pin(scl_pin)
+                scl_num = int(scl_num)
+                sda_port, sda_num = parse_pin(sda_pin)
+                sda_num = int(sda_num)
                 
-                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                port_map = get_port_map()
                 
                 if i2c_mode == "硬件IIC":
                     source_code.extend([
@@ -1383,8 +1571,8 @@ class MCUDriverGenerator:
                         "    ",
                         "    // 使能时钟",
                         "    LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_I2C1);  // 使能I2C1时钟",
-                        f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{scl_port.upper()});  // 使能{port_map[scl_port]}时钟",
-                        f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{sda_port.upper()});  // 使能{port_map[sda_port]}时钟",
+                        enable_gpio_clock_ll(scl_port),
+                        enable_gpio_clock_ll(sda_port),
                         "    ",
                         "    // 配置SCL引脚",
                         f"    LL_GPIO_SetPinMode({port_map[scl_port]}, LL_GPIO_PIN_{scl_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
@@ -1417,8 +1605,8 @@ class MCUDriverGenerator:
                         "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
                         "    ",
                         "    // 使能时钟",
-                        f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{scl_port.upper()});  // 使能{port_map[scl_port]}时钟",
-                        f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{sda_port.upper()});  // 使能{port_map[sda_port]}时钟",
+                        enable_gpio_clock_ll(scl_port),
+                        enable_gpio_clock_ll(sda_port),
                         "    ",
                         "    // 配置SCL引脚",
                         f"    LL_GPIO_SetPinMode({port_map[scl_port]}, LL_GPIO_PIN_{scl_num}, LL_GPIO_MODE_OUTPUT);  // 配置为输出模式",
@@ -1432,6 +1620,75 @@ class MCUDriverGenerator:
                         f"    LL_GPIO_SetPinPull({port_map[sda_port]}, LL_GPIO_PIN_{sda_num}, LL_GPIO_PULL_UP);  // 配置上拉电阻",
                         f"    LL_GPIO_SetOutputPin({port_map[sda_port]}, LL_GPIO_PIN_{sda_num});  // 初始化为高电平"
                     ])
+            elif peripheral == "SPI":
+                sck_pin = params.get("sck_pin", "PA5")
+                miso_pin = params.get("miso_pin", "PA6")
+                mosi_pin = params.get("mosi_pin", "PA7")
+                cs_pin = params.get("cs_pin", "PA4")
+                
+                # 解析引脚
+                sck_port, sck_num = parse_pin(sck_pin)
+                sck_num = int(sck_num)
+                miso_port, miso_num = parse_pin(miso_pin)
+                miso_num = int(miso_num)
+                mosi_port, mosi_num = parse_pin(mosi_pin)
+                mosi_num = int(mosi_num)
+                cs_port, cs_num = parse_pin(cs_pin)
+                cs_num = int(cs_num)
+                
+                port_map = get_port_map()
+                
+                source_code.extend([
+                    "    // SPI初始化函数",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
+                    "    ",
+                    "    // 使能时钟",
+                    "    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SPI1);  // 使能SPI1时钟",
+                    enable_gpio_clock_ll(sck_port),
+                    enable_gpio_clock_ll(miso_port),
+                    enable_gpio_clock_ll(mosi_port),
+                    enable_gpio_clock_ll(cs_port),
+                    "    ",
+                    "    // 配置SCK引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[sck_port]}, LL_GPIO_PIN_{sck_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
+                    f"    LL_GPIO_SetPinSpeed({port_map[sck_port]}, LL_GPIO_PIN_{sck_num}, LL_GPIO_SPEED_FREQ_HIGH);  // 配置输出速度为高速",
+                    f"    LL_GPIO_SetPinPull({port_map[sck_port]}, LL_GPIO_PIN_{sck_num}, LL_GPIO_PULL_NO);  // 配置无拉电阻",
+                    f"    LL_GPIO_SetAFPin_0_7({port_map[sck_port]}, LL_GPIO_PIN_{sck_num}, LL_GPIO_AF_5);  // 配置为SPI1_SCK功能",
+                    "    ",
+                    "    // 配置MISO引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[miso_port]}, LL_GPIO_PIN_{miso_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
+                    f"    LL_GPIO_SetPinSpeed({port_map[miso_port]}, LL_GPIO_PIN_{miso_num}, LL_GPIO_SPEED_FREQ_HIGH);  // 配置输出速度为高速",
+                    f"    LL_GPIO_SetPinPull({port_map[miso_port]}, LL_GPIO_PIN_{miso_num}, LL_GPIO_PULL_NO);  // 配置无拉电阻",
+                    f"    LL_GPIO_SetAFPin_0_7({port_map[miso_port]}, LL_GPIO_PIN_{miso_num}, LL_GPIO_AF_5);  // 配置为SPI1_MISO功能",
+                    "    ",
+                    "    // 配置MOSI引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[mosi_port]}, LL_GPIO_PIN_{mosi_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
+                    f"    LL_GPIO_SetPinSpeed({port_map[mosi_port]}, LL_GPIO_PIN_{mosi_num}, LL_GPIO_SPEED_FREQ_HIGH);  // 配置输出速度为高速",
+                    f"    LL_GPIO_SetPinPull({port_map[mosi_port]}, LL_GPIO_PIN_{mosi_num}, LL_GPIO_PULL_NO);  // 配置无拉电阻",
+                    f"    LL_GPIO_SetAFPin_0_7({port_map[mosi_port]}, LL_GPIO_PIN_{mosi_num}, LL_GPIO_AF_5);  // 配置为SPI1_MOSI功能",
+                    "    ",
+                    "    // 配置CS引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[cs_port]}, LL_GPIO_PIN_{cs_num}, LL_GPIO_MODE_OUTPUT);  // 配置为输出模式",
+                    f"    LL_GPIO_SetPinSpeed({port_map[cs_port]}, LL_GPIO_PIN_{cs_num}, LL_GPIO_SPEED_FREQ_HIGH);  // 配置输出速度为高速",
+                    f"    LL_GPIO_SetPinPull({port_map[cs_port]}, LL_GPIO_PIN_{cs_num}, LL_GPIO_PULL_NO);  // 配置无拉电阻",
+                    f"    LL_GPIO_SetOutputPin({port_map[cs_port]}, LL_GPIO_PIN_{cs_num});  // CS初始化为高电平",
+                    "    ",
+                    "    // 配置SPI参数",
+                    "    LL_SPI_DeInit(SPI1);  // 复位SPI1",
+                    "    LL_SPI_SetMode(SPI1, LL_SPI_MODE_MASTER);  // 设置为主机模式",
+                    "    LL_SPI_SetTransferDirection(SPI1, LL_SPI_FULL_DUPLEX);  // 设置为全双工模式",
+                    "    LL_SPI_SetDataWidth(SPI1, LL_SPI_DATAWIDTH_8BIT);  // 设置数据宽度为8位",
+                    "    LL_SPI_SetClockPolarity(SPI1, LL_SPI_POLARITY_HIGH);  // 设置时钟极性为高",
+                    "    LL_SPI_SetClockPhase(SPI1, LL_SPI_PHASE_2EDGE);  // 设置时钟相位为第二个边沿",
+                    "    LL_SPI_SetNSSMode(SPI1, LL_SPI_NSS_SOFT);  // 使用软件NSS",
+                    "    LL_SPI_SetBaudRatePrescaler(SPI1, LL_SPI_BAUDRATEPRESCALER_4);  // 设置波特率预分频为4",
+                    "    LL_SPI_SetBitOrder(SPI1, LL_SPI_MSB_FIRST);  // 设置高位先发送",
+                    "    LL_SPI_DisableCRC(SPI1);  // 禁用CRC",
+                    "    ",
+                    "    // 使能SPI",
+                    "    LL_SPI_Enable(SPI1);  // 使能SPI1",
+                    "    while (!LL_SPI_IsActiveFlag_TXE(SPI1));  // 等待发送缓冲区为空"
+                ])
             
         source_code.append("}")
         source_code.append("")
@@ -1801,6 +2058,163 @@ class MCUDriverGenerator:
                         "    stop();",
                         "}"
                     ])
+            elif peripheral == "SPI":
+                if lib_type == "标准库":
+                    source_code.extend([
+                        "",
+                        "/**",
+                        " * @brief 发送一个字节数据",
+                        " * @param byte 要发送的字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPIDriver::send_byte(uint8_t byte) {",
+                        "    // 发送一个字节数据",
+                        "    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET);",
+                        "    SPI_I2S_SendData(SPI1, byte);",
+                        "    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET);",
+                        "    return SPI_I2S_ReceiveData(SPI1);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 接收一个字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPIDriver::receive_byte(void) {",
+                        "    // 接收一个字节数据",
+                        "    return send_byte(0xFF);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 发送和接收数据",
+                        " * @param tx_data 发送数据缓冲区",
+                        " * @param rx_data 接收数据缓冲区",
+                        " * @param length 数据长度",
+                        " * @retval None",
+                        " */",
+                        "void SPIDriver::send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length) {",
+                        "    // 发送和接收数据",
+                        "    for (uint16_t i = 0; i < length; i++) {",
+                        "        rx_data[i] = send_byte(tx_data[i]);",
+                        "    }",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 设置片选信号",
+                        " * @param state 片选状态（0为选中，1为取消选中）",
+                        " * @retval None",
+                        " */",
+                        "void SPIDriver::set_cs(uint8_t state) {",
+                        "    // 设置片选信号",
+                        "    if (state) {",
+                        "        // 取消选中",
+                        "    } else {",
+                        "        // 选中",
+                        "    }",
+                        "}"
+                    ])
+                elif lib_type == "HAL库":
+                    source_code.extend([
+                        "",
+                        "/**",
+                        " * @brief 发送一个字节数据",
+                        " * @param byte 要发送的字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPIDriver::send_byte(uint8_t byte) {",
+                        "    // 发送一个字节数据",
+                        "    uint8_t rx_data = 0;",
+                        "    HAL_SPI_TransmitReceive(&hspi, &byte, &rx_data, 1, HAL_MAX_DELAY);",
+                        "    return rx_data;",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 接收一个字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPIDriver::receive_byte(void) {",
+                        "    // 接收一个字节数据",
+                        "    return send_byte(0xFF);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 发送和接收数据",
+                        " * @param tx_data 发送数据缓冲区",
+                        " * @param rx_data 接收数据缓冲区",
+                        " * @param length 数据长度",
+                        " * @retval None",
+                        " */",
+                        "void SPIDriver::send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length) {",
+                        "    // 发送和接收数据",
+                        "    HAL_SPI_TransmitReceive(&hspi, tx_data, rx_data, length, HAL_MAX_DELAY);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 设置片选信号",
+                        " * @param state 片选状态（0为选中，1为取消选中）",
+                        " * @retval None",
+                        " */",
+                        "void SPIDriver::set_cs(uint8_t state) {",
+                        "    // 设置片选信号",
+                        "    if (state) {",
+                        "        // 取消选中",
+                        "    } else {",
+                        "        // 选中",
+                        "    }",
+                        "}"
+                    ])
+                else:  # LL库
+                    source_code.extend([
+                        "",
+                        "/**",
+                        " * @brief 发送一个字节数据",
+                        " * @param byte 要发送的字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPIDriver::send_byte(uint8_t byte) {",
+                        "    // 发送一个字节数据",
+                        "    while (!LL_SPI_IsActiveFlag_TXE(SPI1));",
+                        "    LL_SPI_TransmitData8(SPI1, byte);",
+                        "    while (!LL_SPI_IsActiveFlag_RXNE(SPI1));",
+                        "    return LL_SPI_ReceiveData8(SPI1);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 接收一个字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPIDriver::receive_byte(void) {",
+                        "    // 接收一个字节数据",
+                        "    return send_byte(0xFF);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 发送和接收数据",
+                        " * @param tx_data 发送数据缓冲区",
+                        " * @param rx_data 接收数据缓冲区",
+                        " * @param length 数据长度",
+                        " * @retval None",
+                        " */",
+                        "void SPIDriver::send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length) {",
+                        "    // 发送和接收数据",
+                        "    for (uint16_t i = 0; i < length; i++) {",
+                        "        rx_data[i] = send_byte(tx_data[i]);",
+                        "    }",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 设置片选信号",
+                        " * @param state 片选状态（0为选中，1为取消选中）",
+                        " * @retval None",
+                        " */",
+                        "void SPIDriver::set_cs(uint8_t state) {",
+                        "    // 设置片选信号",
+                        "    if (state) {",
+                        "        // 取消选中",
+                        "    } else {",
+                        "        // 选中",
+                        "    }",
+                        "}"
+                    ])
             # 其他外设的C++操作函数实现...
         else:
             if peripheral == "GPIO":
@@ -2164,6 +2578,163 @@ class MCUDriverGenerator:
                         "    I2C_write_byte(reg_addr); // 发送寄存器地址",
                         "    I2C_write_byte(data); // 发送数据",
                         "    I2C_stop();",
+                        "}"
+                    ])
+            elif peripheral == "SPI":
+                if lib_type == "标准库":
+                    source_code.extend([
+                        "",
+                        "/**",
+                        " * @brief 发送一个字节数据",
+                        " * @param byte 要发送的字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPI_send_byte(uint8_t byte) {",
+                        "    // 发送一个字节数据",
+                        "    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_TXE) == RESET);",
+                        "    SPI_I2S_SendData(SPI1, byte);",
+                        "    while (SPI_I2S_GetFlagStatus(SPI1, SPI_I2S_FLAG_RXNE) == RESET);",
+                        "    return SPI_I2S_ReceiveData(SPI1);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 接收一个字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPI_receive_byte(void) {",
+                        "    // 接收一个字节数据",
+                        "    return SPI_send_byte(0xFF);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 发送和接收数据",
+                        " * @param tx_data 发送数据缓冲区",
+                        " * @param rx_data 接收数据缓冲区",
+                        " * @param length 数据长度",
+                        " * @retval None",
+                        " */",
+                        "void SPI_send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length) {",
+                        "    // 发送和接收数据",
+                        "    for (uint16_t i = 0; i < length; i++) {",
+                        "        rx_data[i] = SPI_send_byte(tx_data[i]);",
+                        "    }",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 设置片选信号",
+                        " * @param state 片选状态（0为选中，1为取消选中）",
+                        " * @retval None",
+                        " */",
+                        "void SPI_set_cs(uint8_t state) {",
+                        "    // 设置片选信号",
+                        "    if (state) {",
+                        "        // 取消选中",
+                        "    } else {",
+                        "        // 选中",
+                        "    }",
+                        "}"
+                    ])
+                elif lib_type == "HAL库":
+                    source_code.extend([
+                        "",
+                        "/**",
+                        " * @brief 发送一个字节数据",
+                        " * @param byte 要发送的字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPI_send_byte(uint8_t byte) {",
+                        "    // 发送一个字节数据",
+                        "    uint8_t rx_data = 0;",
+                        "    HAL_SPI_TransmitReceive(&hspi, &byte, &rx_data, 1, HAL_MAX_DELAY);",
+                        "    return rx_data;",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 接收一个字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPI_receive_byte(void) {",
+                        "    // 接收一个字节数据",
+                        "    return SPI_send_byte(0xFF);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 发送和接收数据",
+                        " * @param tx_data 发送数据缓冲区",
+                        " * @param rx_data 接收数据缓冲区",
+                        " * @param length 数据长度",
+                        " * @retval None",
+                        " */",
+                        "void SPI_send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length) {",
+                        "    // 发送和接收数据",
+                        "    HAL_SPI_TransmitReceive(&hspi, tx_data, rx_data, length, HAL_MAX_DELAY);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 设置片选信号",
+                        " * @param state 片选状态（0为选中，1为取消选中）",
+                        " * @retval None",
+                        " */",
+                        "void SPI_set_cs(uint8_t state) {",
+                        "    // 设置片选信号",
+                        "    if (state) {",
+                        "        // 取消选中",
+                        "    } else {",
+                        "        // 选中",
+                        "    }",
+                        "}"
+                    ])
+                else:  # LL库
+                    source_code.extend([
+                        "",
+                        "/**",
+                        " * @brief 发送一个字节数据",
+                        " * @param byte 要发送的字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPI_send_byte(uint8_t byte) {",
+                        "    // 发送一个字节数据",
+                        "    while (!LL_SPI_IsActiveFlag_TXE(SPI1));",
+                        "    LL_SPI_TransmitData8(SPI1, byte);",
+                        "    while (!LL_SPI_IsActiveFlag_RXNE(SPI1));",
+                        "    return LL_SPI_ReceiveData8(SPI1);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 接收一个字节数据",
+                        " * @retval uint8_t 接收到的字节数据",
+                        " */",
+                        "uint8_t SPI_receive_byte(void) {",
+                        "    // 接收一个字节数据",
+                        "    return SPI_send_byte(0xFF);",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 发送和接收数据",
+                        " * @param tx_data 发送数据缓冲区",
+                        " * @param rx_data 接收数据缓冲区",
+                        " * @param length 数据长度",
+                        " * @retval None",
+                        " */",
+                        "void SPI_send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length) {",
+                        "    // 发送和接收数据",
+                        "    for (uint16_t i = 0; i < length; i++) {",
+                        "        rx_data[i] = SPI_send_byte(tx_data[i]);",
+                        "    }",
+                        "}",
+                        "",
+                        "/**",
+                        " * @brief 设置片选信号",
+                        " * @param state 片选状态（0为选中，1为取消选中）",
+                        " * @retval None",
+                        " */",
+                        "void SPI_set_cs(uint8_t state) {",
+                        "    // 设置片选信号",
+                        "    if (state) {",
+                        "        // 取消选中",
+                        "    } else {",
+                        "        // 选中",
+                        "    }",
                         "}"
                     ])
             # 其他外设的C操作函数实现...
