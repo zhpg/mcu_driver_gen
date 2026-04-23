@@ -784,7 +784,60 @@ class MCUDriverGenerator:
                     f"    {'LL_GPIO_SetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置初始电平为高电平' if output_level == '高电平' else 'LL_GPIO_ResetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置初始电平为低电平'}"
                 ])
             
-            # 其他外设的LL库初始化代码...
+            elif peripheral == "UART":
+                baudrate = params["baudrate"]
+                data_bits = params["databits"]
+                parity = params["parity"]
+                stop_bits = params["stopbits"]
+                flow_control = params["flowcontrol"]
+                tx_pin = params["tx_pin"]
+                rx_pin = params["rx_pin"]
+                
+                # 解析引脚
+                tx_port = tx_pin[1] if tx_pin[0] == 'P' else tx_pin[0]
+                tx_num = int(tx_pin[2:] if tx_pin[0] == 'P' else tx_pin[1:])
+                rx_port = rx_pin[1] if rx_pin[0] == 'P' else rx_pin[0]
+                rx_num = int(rx_pin[2:] if rx_pin[0] == 'P' else rx_pin[1:])
+                
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                
+                data_bits_map = {"8位": "LL_USART_DATAWIDTH_8B", "9位": "LL_USART_DATAWIDTH_9B"}
+                parity_map = {"无校验": "LL_USART_PARITY_NONE", "奇校验": "LL_USART_PARITY_ODD", "偶校验": "LL_USART_PARITY_EVEN"}
+                stop_bits_map = {"1位": "LL_USART_STOPBITS_1", "2位": "LL_USART_STOPBITS_2"}
+                
+                source_code.extend([
+                    "    // UART初始化",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;",
+                    "    ",
+                    "    // 使能时钟",
+                    "    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_USART1);",
+                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{tx_port.upper()});",
+                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{rx_port.upper()});",
+                    "    ",
+                    "    // 配置GPIO",
+                    f"    LL_GPIO_SetPinMode({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_MODE_ALTERNATE);",
+                    f"    LL_GPIO_SetPinSpeed({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_SPEED_FREQ_HIGH);",
+                    f"    LL_GPIO_SetPinPull({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_PULL_UP);",
+                    f"    LL_GPIO_SetAFPin_8_15({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_AF_7); // USART1_TX",
+                    "    ",
+                    f"    LL_GPIO_SetPinMode({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_MODE_ALTERNATE);",
+                    f"    LL_GPIO_SetPinSpeed({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_SPEED_FREQ_HIGH);",
+                    f"    LL_GPIO_SetPinPull({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_PULL_UP);",
+                    f"    LL_GPIO_SetAFPin_8_15({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_AF_7); // USART1_RX",
+                    "    ",
+                    "    // 配置UART",
+                    "    LL_USART_DeInit(USART1);",
+                    f"    LL_USART_SetBaudRate(USART1, SystemCoreClock, LL_USART_OVERSAMPLING_16, {baudrate});",
+                    f"    LL_USART_SetDataWidth(USART1, {data_bits_map[data_bits]});",
+                    f"    LL_USART_SetStopBitsLength(USART1, {stop_bits_map[stop_bits]});",
+                    f"    LL_USART_SetParity(USART1, {parity_map[parity]});",
+                    f"    LL_USART_SetTransferDirection(USART1, LL_USART_DIRECTION_TX_RX);",
+                    f"    LL_USART_SetHardwareFlowControl(USART1, LL_USART_HWCONTROL_NONE);",
+                    "    ",
+                    "    // 使能UART",
+                    "    LL_USART_Enable(USART1);",
+                    "    while (!LL_USART_IsActiveFlag_TEACK(USART1) || !LL_USART_IsActiveFlag_REACK(USART1));"
+                ])
         
         source_code.append("}")
         source_code.append("")
@@ -819,6 +872,44 @@ class MCUDriverGenerator:
                     f"    return GPIO_ReadInputDataBit({port_map[port]}, GPIO_Pin_{pin_num});",
                     "}"
                 ])
+            elif peripheral == "UART":
+                source_code.extend([
+                    "void UARTDriver::send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    while (!LL_USART_IsActiveFlag_TXE(USART1));",
+                    "    LL_USART_TransmitData8(USART1, byte);",
+                    "}",
+                    "",
+                    "void UARTDriver::send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UARTDriver::receive_byte() {",
+                    "    // 接收一个字节",
+                    "    while (!LL_USART_IsActiveFlag_RXNE(USART1));",
+                    "    return LL_USART_ReceiveData8(USART1);",
+                    "}",
+                    "",
+                    "void UARTDriver::receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UARTDriver::config_interrupt() {",
+                    "    // 配置UART中断",
+                    "    LL_USART_EnableIT_RXNE(USART1);",
+                    "    NVIC_EnableIRQ(USART1_IRQn);",
+                    "}"
+                ])
             # 其他外设的C++操作函数实现...
         else:
             if peripheral == "GPIO":
@@ -847,6 +938,44 @@ class MCUDriverGenerator:
                     f"uint8_t GPIO_read(void) {{",
                     "    // 读取引脚电平",
                     f"    return GPIO_ReadInputDataBit({port_map[port]}, GPIO_Pin_{pin_num});",
+                    "}"
+                ])
+            elif peripheral == "UART":
+                source_code.extend([
+                    "void UART_send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    while (!LL_USART_IsActiveFlag_TXE(USART1));",
+                    "    LL_USART_TransmitData8(USART1, byte);",
+                    "}",
+                    "",
+                    "void UART_send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        UART_send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UART_receive_byte(void) {",
+                    "    // 接收一个字节",
+                    "    while (!LL_USART_IsActiveFlag_RXNE(USART1));",
+                    "    return LL_USART_ReceiveData8(USART1);",
+                    "}",
+                    "",
+                    "void UART_receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = UART_receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UART_config_interrupt(void) {",
+                    "    // 配置UART中断",
+                    "    LL_USART_EnableIT_RXNE(USART1);",
+                    "    NVIC_EnableIRQ(USART1_IRQn);",
                     "}"
                 ])
             # 其他外设的C操作函数实现...
@@ -1471,9 +1600,25 @@ class MCUDriverGenerator:
             header_code.append("class " + peripheral + "Driver {")
             header_code.append("public:")
             header_code.append("    static void init();")
+            if peripheral == "UART":
+                header_code.extend([
+                    "    static void send_byte(uint8_t byte);",
+                    "    static void send_string(const char* str);",
+                    "    static uint8_t receive_byte();",
+                    "    static void receive_string(char* buffer, uint16_t length);",
+                    "    static void config_interrupt();"
+                ])
             header_code.append("};")
         else:
             header_code.append("void " + peripheral + "_init(void);")
+            if peripheral == "UART":
+                header_code.extend([
+                    "void UART_send_byte(uint8_t byte);",
+                    "void UART_send_string(const char* str);",
+                    "uint8_t UART_receive_byte(void);",
+                    "void UART_receive_string(char* buffer, uint16_t length);",
+                    "void UART_config_interrupt(void);"
+                ])
         
         # 源文件包含头文件
         source_code.extend([
@@ -1703,6 +1848,87 @@ class MCUDriverGenerator:
         
         source_code.append("}")
         
+        # 添加UART操作函数实现
+        if peripheral == "UART":
+            if is_cpp:
+                source_code.extend([
+                    "",
+                    "void UARTDriver::send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    while (usart_flag_get(USART0, USART_FLAG_TBE) == RESET);",
+                    "    usart_data_transmit(USART0, byte);",
+                    "}",
+                    "",
+                    "void UARTDriver::send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UARTDriver::receive_byte() {",
+                    "    // 接收一个字节",
+                    "    while (usart_flag_get(USART0, USART_FLAG_RBNE) == RESET);",
+                    "    return usart_data_receive(USART0);",
+                    "}",
+                    "",
+                    "void UARTDriver::receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UARTDriver::config_interrupt() {",
+                    "    // 配置UART中断",
+                    "    nvic_irq_enable(USART0_IRQn, 0, 0);",
+                    "    usart_interrupt_enable(USART0, USART_INT_RBNE);",
+                    "}"
+                ])
+            else:
+                source_code.extend([
+                    "",
+                    "void UART_send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    while (usart_flag_get(USART0, USART_FLAG_TBE) == RESET);",
+                    "    usart_data_transmit(USART0, byte);",
+                    "}",
+                    "",
+                    "void UART_send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        UART_send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UART_receive_byte(void) {",
+                    "    // 接收一个字节",
+                    "    while (usart_flag_get(USART0, USART_FLAG_RBNE) == RESET);",
+                    "    return usart_data_receive(USART0);",
+                    "}",
+                    "",
+                    "void UART_receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = UART_receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UART_config_interrupt(void) {",
+                    "    // 配置UART中断",
+                    "    nvic_irq_enable(USART0_IRQn, 0, 0);",
+                    "    usart_interrupt_enable(USART0, USART_INT_RBNE);",
+                    "}"
+                ])
+        
         # 添加中断处理函数（如果需要）
         if peripheral == "TIM":
             source_code.extend([
@@ -1740,9 +1966,25 @@ class MCUDriverGenerator:
             header_code.append("class " + peripheral + "Driver {")
             header_code.append("public:")
             header_code.append("    static void init();")
+            if peripheral == "UART":
+                header_code.extend([
+                    "    static void send_byte(uint8_t byte);",
+                    "    static void send_string(const char* str);",
+                    "    static uint8_t receive_byte();",
+                    "    static void receive_string(char* buffer, uint16_t length);",
+                    "    static void config_interrupt();"
+                ])
             header_code.append("};")
         else:
             header_code.append("void " + peripheral + "_init(void);")
+            if peripheral == "UART":
+                header_code.extend([
+                    "void UART_send_byte(uint8_t byte);",
+                    "void UART_send_string(const char* str);",
+                    "uint8_t UART_receive_byte(void);",
+                    "void UART_receive_string(char* buffer, uint16_t length);",
+                    "void UART_config_interrupt(void);"
+                ])
         
         # 源文件包含头文件
         source_code.extend([
@@ -1952,6 +2194,87 @@ class MCUDriverGenerator:
         
         source_code.append("}")
         
+        # 添加UART操作函数实现
+        if peripheral == "UART":
+            if is_cpp:
+                source_code.extend([
+                    "",
+                    "void UARTDriver::send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    Uart_SendData(M0P_UART0, byte);",
+                    "    while (!Uart_GetStatus(M0P_UART0, UartTxEmpty));",
+                    "}",
+                    "",
+                    "void UARTDriver::send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UARTDriver::receive_byte() {",
+                    "    // 接收一个字节",
+                    "    while (!Uart_GetStatus(M0P_UART0, UartRxFull));",
+                    "    return Uart_ReceiveData(M0P_UART0);",
+                    "}",
+                    "",
+                    "void UARTDriver::receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UARTDriver::config_interrupt() {",
+                    "    // 配置UART中断",
+                    "    EnableNvic(UART0_IRQn, IrqLevel3, TRUE);",
+                    "    Uart_IntCmd(M0P_UART0, UartRxIrq, TRUE);",
+                    "}"
+                ])
+            else:
+                source_code.extend([
+                    "",
+                    "void UART_send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    Uart_SendData(M0P_UART0, byte);",
+                    "    while (!Uart_GetStatus(M0P_UART0, UartTxEmpty));",
+                    "}",
+                    "",
+                    "void UART_send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        UART_send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UART_receive_byte(void) {",
+                    "    // 接收一个字节",
+                    "    while (!Uart_GetStatus(M0P_UART0, UartRxFull));",
+                    "    return Uart_ReceiveData(M0P_UART0);",
+                    "}",
+                    "",
+                    "void UART_receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = UART_receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UART_config_interrupt(void) {",
+                    "    // 配置UART中断",
+                    "    EnableNvic(UART0_IRQn, IrqLevel3, TRUE);",
+                    "    Uart_IntCmd(M0P_UART0, UartRxIrq, TRUE);",
+                    "}"
+                ])
+        
         # 添加中断处理函数（如果需要）
         if peripheral == "TIM":
             source_code.extend([
@@ -1989,9 +2312,25 @@ class MCUDriverGenerator:
             header_code.append("class " + peripheral + "Driver {")
             header_code.append("public:")
             header_code.append("    static void init();")
+            if peripheral == "UART":
+                header_code.extend([
+                    "    static void send_byte(uint8_t byte);",
+                    "    static void send_string(const char* str);",
+                    "    static uint8_t receive_byte();",
+                    "    static void receive_string(char* buffer, uint16_t length);",
+                    "    static void config_interrupt();"
+                ])
             header_code.append("};")
         else:
             header_code.append("void " + peripheral + "_init(void);")
+            if peripheral == "UART":
+                header_code.extend([
+                    "void UART_send_byte(uint8_t byte);",
+                    "void UART_send_string(const char* str);",
+                    "uint8_t UART_receive_byte(void);",
+                    "void UART_receive_string(char* buffer, uint16_t length);",
+                    "void UART_config_interrupt(void);"
+                ])
         
         # 源文件包含头文件
         source_code.extend([
@@ -2060,6 +2399,87 @@ class MCUDriverGenerator:
             ])
         
         source_code.append("}")
+        
+        # 添加UART操作函数实现
+        if peripheral == "UART":
+            if is_cpp:
+                source_code.extend([
+                    "",
+                    "void UARTDriver::send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    while (!(UART0->UART_SR & UART_SR_TXRDY));",
+                    "    UART0->UART_THR = byte;",
+                    "}",
+                    "",
+                    "void UARTDriver::send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UARTDriver::receive_byte() {",
+                    "    // 接收一个字节",
+                    "    while (!(UART0->UART_SR & UART_SR_RXRDY));",
+                    "    return UART0->UART_RHR;",
+                    "}",
+                    "",
+                    "void UARTDriver::receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UARTDriver::config_interrupt() {",
+                    "    // 配置UART中断",
+                    "    NVIC_EnableIRQ(UART0_IRQn);",
+                    "    UART0->UART_IER = UART_IER_RXRDY;",
+                    "}"
+                ])
+            else:
+                source_code.extend([
+                    "",
+                    "void UART_send_byte(uint8_t byte) {",
+                    "    // 发送一个字节",
+                    "    while (!(UART0->UART_SR & UART_SR_TXRDY));",
+                    "    UART0->UART_THR = byte;",
+                    "}",
+                    "",
+                    "void UART_send_string(const char* str) {",
+                    "    // 发送字符串",
+                    "    while (*str) {",
+                    "        UART_send_byte(*str++);",
+                    "    }",
+                    "}",
+                    "",
+                    "uint8_t UART_receive_byte(void) {",
+                    "    // 接收一个字节",
+                    "    while (!(UART0->UART_SR & UART_SR_RXRDY));",
+                    "    return UART0->UART_RHR;",
+                    "}",
+                    "",
+                    "void UART_receive_string(char* buffer, uint16_t length) {",
+                    "    // 接收字符串",
+                    "    uint16_t i = 0;",
+                    "    while (i < length - 1) {",
+                    "        buffer[i] = UART_receive_byte();",
+                    "        if (buffer[i] == '\\0') break;",
+                    "        i++;",
+                    "    }",
+                    "    buffer[i] = '\\0';",
+                    "}",
+                    "",
+                    "void UART_config_interrupt(void) {",
+                    "    // 配置UART中断",
+                    "    NVIC_EnableIRQ(UART0_IRQn);",
+                    "    UART0->UART_IER = UART_IER_RXRDY;",
+                    "}"
+                ])
         
         return "\n".join(header_code), "\n".join(source_code)
     
