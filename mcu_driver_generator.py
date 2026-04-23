@@ -1,0 +1,2365 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+单片机驱动代码生成器
+功能：根据选择的单片机型号、外设接口和代码语言，生成标准驱动初始化代码
+"""
+
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox, filedialog
+import re
+import datetime
+
+class MCUDriverGenerator:
+    def __init__(self, root):
+        """初始化应用程序"""
+        self.root = root
+        self.root.title("单片机驱动代码生成器")
+        self.root.geometry("800x600")
+        self.root.resizable(True, True)
+        
+        # 设置字体
+        self.title_font = ("SimHei", 16, "bold")
+        self.label_font = ("SimHei", 10)
+        self.button_font = ("SimHei", 10)
+        self.code_font = ("Consolas", 10)
+        
+        # 支持的选型列表
+        self.mcu_models = [
+            "STM32F103", "STM32F407", "STM32H743", 
+            "AT89C51", "ESP32", "GD32F103", "HC32L136", "ATSAME70"
+        ]
+        self.peripherals = [
+            "GPIO", "UART", "I2C", "SPI", "CAN", "ADC", "PWM", "TIM"
+        ]
+        self.languages = ["C语言", "C++语言"]
+        
+        # 库函数类型映射
+        self.lib_types = {
+            "STM32F103": ["标准库", "LL库", "HAL库"],
+            "STM32F407": ["标准库", "LL库", "HAL库"],
+            "STM32H743": ["HAL库", "LL库"],
+            "ESP32": ["ESP-IDF库"],
+            "GD32F103": ["GD标准库", "HAL库"],
+            "HC32L136": ["HC标准库"],
+            "AT89C51": ["寄存器操作"],
+            "ATSAME70": ["Atmel START库", "ASF库"]
+        }
+        
+        # 默认晶振频率映射
+        self.default_xtal = {
+            "STM32F103": 16,
+            "STM32F407": 16,
+            "STM32H743": 16,
+            "ESP32": 26,
+            "GD32F103": 16,
+            "HC32L136": 16,
+            "AT89C51": 11.0592,
+            "ATSAME70": 16
+        }
+        
+        # 初始化变量
+        self.selected_mcu = tk.StringVar()
+        self.selected_peripheral = tk.StringVar()
+        self.selected_language = tk.StringVar(value="C语言")
+        self.selected_lib = tk.StringVar()
+        self.xtal_frequency = tk.DoubleVar()
+
+        
+        # 外设参数
+        self.peripheral_params = {
+            "GPIO": {
+                "pin": tk.StringVar(value="PA0"),
+                "mode": tk.StringVar(value="输出"),
+                "level": tk.StringVar(value="低电平"),
+                "pull": tk.StringVar(value="无")
+            },
+            "UART": {
+                "baudrate": tk.StringVar(value="9600"),
+                "databits": tk.StringVar(value="8位"),
+                "parity": tk.StringVar(value="无校验"),
+                "stopbits": tk.StringVar(value="1位"),
+                "flowcontrol": tk.StringVar(value="关闭"),
+                "tx_pin": tk.StringVar(value="PA9"),
+                "rx_pin": tk.StringVar(value="PA10")
+            },
+            "I2C": {
+                "mode": tk.StringVar(value="主模式"),
+                "slave_addr": tk.StringVar(value="0x48"),
+                "speed": tk.StringVar(value="100kHz"),
+                "sda_pin": tk.StringVar(value="PB7"),
+                "scl_pin": tk.StringVar(value="PB6")
+            },
+            "SPI": {
+                "mode": tk.StringVar(value="模式0"),
+                "speed": tk.StringVar(value="1MHz"),
+                "databits": tk.StringVar(value="8位"),
+                "cpol": tk.StringVar(value="0"),
+                "cpha": tk.StringVar(value="0"),
+                "cs_pin": tk.StringVar(value="PA4"),
+                "mosi_pin": tk.StringVar(value="PA7"),
+                "miso_pin": tk.StringVar(value="PA6"),
+                "sck_pin": tk.StringVar(value="PA5")
+            },
+            "CAN": {
+                "baudrate": tk.StringVar(value="500kbps"),
+                "filter_mode": tk.StringVar(value="列表模式"),
+                "filter_id": tk.StringVar(value="0x00"),
+                "rx_pin": tk.StringVar(value="PA11"),
+                "tx_pin": tk.StringVar(value="PA12")
+            },
+            "ADC": {
+                "channel": tk.StringVar(value="通道0"),
+                "samplerate": tk.StringVar(value="1MHz"),
+                "resolution": tk.StringVar(value="12位"),
+                "ref_voltage": tk.StringVar(value="3.3V"),
+                "pin": tk.StringVar(value="PA0")
+            },
+            "PWM": {
+                "channel": tk.StringVar(value="通道1"),
+                "frequency": tk.StringVar(value="1kHz"),
+                "duty": tk.StringVar(value="50%"),
+                "pin": tk.StringVar(value="PA8")
+            },
+            "TIM": {
+                "timer": tk.StringVar(value="TIM1"),
+                "count_mode": tk.StringVar(value="向上计数"),
+                "prescaler": tk.StringVar(value="7199"),
+                "arr": tk.StringVar(value="9999"),
+                "period": tk.StringVar(value="1ms")
+            }
+        }
+        
+        # 创建主框架
+        self.main_frame = ttk.Frame(root, padding="10")
+        self.main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建界面元素
+        self.create_widgets()
+    
+    def create_widgets(self):
+        """创建界面元素"""
+        # 主框架分为左右两部分
+        left_frame = ttk.Frame(self.main_frame, width=400)  # 左侧框架，占1/3
+        left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5, expand=False)
+        left_frame.pack_propagate(False)  # 保持宽度
+        
+        right_frame = ttk.Frame(self.main_frame)  # 右侧框架，占2/3
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, padx=5, pady=5, expand=True)
+        
+        # 左侧框架内容
+        # 标题
+        title_label = ttk.Label(
+            left_frame, 
+            text="单片机驱动代码生成器", 
+            font=self.title_font
+        )
+        title_label.pack(pady=5)
+        
+        # 选择区域框架 - 使用网格布局
+        selection_frame = ttk.Frame(left_frame)
+        selection_frame.pack(fill=tk.X, pady=2)
+        
+        # 第一行：单片机型号和外设接口
+        ttk.Label(selection_frame, text="选择单片机型号:", font=self.label_font).grid(row=0, column=0, sticky=tk.W, padx=5, pady=1)
+        mcu_combobox = ttk.Combobox(
+            selection_frame, 
+            textvariable=self.selected_mcu, 
+            values=self.mcu_models, 
+            state="readonly"
+        )
+        mcu_combobox.grid(row=0, column=1, sticky=tk.EW, padx=5, pady=1)
+        
+        ttk.Label(selection_frame, text="选择外设接口:", font=self.label_font).grid(row=1, column=0, sticky=tk.W, padx=5, pady=1)
+        peripheral_combobox = ttk.Combobox(
+            selection_frame, 
+            textvariable=self.selected_peripheral, 
+            values=self.peripherals, 
+            state="readonly"
+        )
+        peripheral_combobox.grid(row=1, column=1, sticky=tk.EW, padx=5, pady=1)
+        
+        # 第二行：代码语言和库函数类型
+        ttk.Label(selection_frame, text="选择代码语言:", font=self.label_font).grid(row=2, column=0, sticky=tk.W, padx=5, pady=1)
+        
+        language_frame = ttk.Frame(selection_frame)
+        language_frame.grid(row=2, column=1, sticky=tk.W, padx=5, pady=1)
+        c_radio = ttk.Radiobutton(
+            language_frame, 
+            text="C语言", 
+            variable=self.selected_language, 
+            value="C语言"
+        )
+        c_radio.pack(side=tk.LEFT, padx=5)
+        
+        cpp_radio = ttk.Radiobutton(
+            language_frame, 
+            text="C++语言", 
+            variable=self.selected_language, 
+            value="C++语言"
+        )
+        cpp_radio.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(selection_frame, text="选择库函数类型:", font=self.label_font).grid(row=3, column=0, sticky=tk.W, padx=5, pady=1)
+        self.lib_combobox = ttk.Combobox(
+            selection_frame, 
+            textvariable=self.selected_lib, 
+            state="readonly"
+        )
+        self.lib_combobox.grid(row=3, column=1, sticky=tk.EW, padx=5, pady=1)
+        
+        # 第三行：外部晶振设置
+        ttk.Label(selection_frame, text="外部晶振频率:", font=self.label_font).grid(row=4, column=0, sticky=tk.W, padx=5, pady=1)
+        self.xtal_entry = ttk.Entry(selection_frame, textvariable=self.xtal_frequency, width=10)
+        self.xtal_entry.grid(row=4, column=1, sticky=tk.W, padx=5, pady=1)
+        ttk.Label(selection_frame, text="MHz", font=self.label_font).grid(row=4, column=2, sticky=tk.W, padx=5, pady=1)
+        
+        # 设置列权重，使输入框能够扩展
+        selection_frame.grid_columnconfigure(1, weight=1)
+        
+        # 外设参数面板
+        self.param_frame = ttk.LabelFrame(left_frame, text="外设参数设置")
+        self.param_frame.pack(fill=tk.X, pady=5, expand=False)
+        
+        # 参数预览窗口
+        self.preview_frame = ttk.LabelFrame(left_frame, text="参数预览")
+        self.preview_frame.pack(fill=tk.X, pady=5, expand=False)
+        self.preview_text = scrolledtext.ScrolledText(
+            self.preview_frame, 
+            height=5, 
+            font=self.code_font, 
+            wrap=tk.WORD
+        )
+        self.preview_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 状态提示区域
+        self.status_frame = ttk.Frame(left_frame)
+        self.status_frame.pack(fill=tk.X, pady=2)
+        self.status_label = ttk.Label(
+            self.status_frame, 
+            text="", 
+            font=self.label_font,
+            relief=tk.SUNKEN,
+            anchor=tk.W
+        )
+        self.status_label.pack(fill=tk.X, padx=5, pady=1)
+        
+        # 按钮区域
+        button_frame = ttk.Frame(left_frame)
+        button_frame.pack(fill=tk.X, pady=5)
+        
+        generate_button = ttk.Button(
+            button_frame, 
+            text="生成代码", 
+            command=self.generate_code, 
+            style="TButton"
+        )
+        generate_button.pack(side=tk.LEFT, padx=5, expand=True)
+        
+        copy_button = ttk.Button(
+            button_frame, 
+            text="复制代码", 
+            command=self.copy_code, 
+            style="TButton"
+        )
+        copy_button.pack(side=tk.LEFT, padx=5, expand=True)
+        
+        save_button = ttk.Button(
+            button_frame, 
+            text="保存代码", 
+            command=self.save_code, 
+            style="TButton"
+        )
+        save_button.pack(side=tk.LEFT, padx=5, expand=True)
+        
+        # 右侧框架内容 - 代码显示区域
+        code_frame = ttk.LabelFrame(right_frame, text="生成的代码")
+        code_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 创建标签页控件
+        notebook = ttk.Notebook(code_frame)
+        notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # 头文件标签页
+        header_tab = ttk.Frame(notebook)
+        notebook.add(header_tab, text="头文件 (.h)")
+        
+        self.header_text = scrolledtext.ScrolledText(
+            header_tab, 
+            font=self.code_font, 
+            wrap=tk.WORD,
+            bg='#f8f8f8'
+        )
+        self.header_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 源文件标签页
+        source_tab = ttk.Frame(notebook)
+        notebook.add(source_tab, text="源文件 (.c/.cpp)")
+        
+        self.source_text = scrolledtext.ScrolledText(
+            source_tab, 
+            font=self.code_font, 
+            wrap=tk.WORD,
+            bg='#f8f8f8'
+        )
+        self.source_text.pack(fill=tk.BOTH, expand=True)
+        
+        # 绑定事件
+        mcu_combobox.bind("<<ComboboxSelected>>", self.on_mcu_change)
+        peripheral_combobox.bind("<<ComboboxSelected>>", self.on_peripheral_change)
+        self.selected_lib.trace_add("write", self.update_preview)
+        self.xtal_frequency.trace_add("write", self.update_preview)
+        
+        # 为所有外设参数添加跟踪
+        for peripheral, params in self.peripheral_params.items():
+            for param_name, param_var in params.items():
+                param_var.trace_add("write", self.update_preview)
+        
+        # 配置样式
+        style = ttk.Style()
+        style.configure("TButton", font=self.button_font)
+    
+    def generate_code(self):
+        """生成驱动代码"""
+        mcu = self.selected_mcu.get()
+        peripheral = self.selected_peripheral.get()
+        language = self.selected_language.get()
+        lib_type = self.selected_lib.get()
+        xtal = self.xtal_frequency.get()
+        
+        if not mcu or not peripheral:
+            messagebox.showwarning("警告", "请选择单片机型号和外设接口")
+            return
+        
+        # 清空之前的代码
+        self.header_text.delete(1.0, tk.END)
+        self.source_text.delete(1.0, tk.END)
+        
+        # 获取外设参数
+        params = {}
+        if peripheral in self.peripheral_params:
+            for param_name, param_var in self.peripheral_params[peripheral].items():
+                # 检查param_var是否有get方法（是否是StringVar对象）
+                if hasattr(param_var, 'get'):
+                    params[param_name] = param_var.get()
+                else:
+                    # 如果是字符串，直接使用
+                    params[param_name] = param_var
+        
+        # 根据选择生成代码
+        try:
+            if mcu.startswith("STM32"):
+                header_code, source_code = self.generate_stm32_code(mcu, peripheral, language, lib_type, xtal, params)
+            elif mcu == "AT89C51":
+                header_code, source_code = self.generate_51_code(peripheral, language, lib_type, xtal, params)
+            elif mcu == "ESP32":
+                header_code, source_code = self.generate_esp32_code(peripheral, language, lib_type, xtal, params)
+            elif mcu == "GD32F103":
+                header_code, source_code = self.generate_gd32_code(peripheral, language, params)
+            elif mcu == "HC32L136":
+                header_code, source_code = self.generate_hc32_code(peripheral, language, params)
+            elif mcu == "ATSAME70":
+                header_code, source_code = self.generate_same70_code(peripheral, language, lib_type, xtal, params)
+            else:
+                header_code = "// 暂不支持该单片机型号的代码生成"
+                source_code = "// 暂不支持该单片机型号的代码生成"
+            
+            # 显示生成的代码
+            self.header_text.insert(tk.END, header_code)
+            self.source_text.insert(tk.END, source_code)
+            
+            # 简单的语法高亮
+            self.highlight_syntax()
+            
+            # 在状态提示区域显示生成成功信息，添加时间戳
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.status_label.config(text=f"[{timestamp}] 成功: {mcu} {peripheral} 驱动代码生成成功！", foreground="green")
+        except Exception as e:
+            # 在状态提示区域显示生成失败信息，添加时间戳
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            error_msg = f"[{timestamp}] 错误: 代码生成失败：{str(e)}"
+            self.status_label.config(text=error_msg, foreground="red")
+            # 显示错误信息到代码框
+            self.header_text.insert(tk.END, f"// 代码生成失败：{str(e)}")
+            self.source_text.insert(tk.END, f"// 代码生成失败：{str(e)}")
+    
+    def generate_stm32_code(self, mcu, peripheral, language, lib_type, xtal, params):
+        """生成STM32系列代码"""
+        is_cpp = language == "C++语言"
+        header_code = []
+        source_code = []
+        
+        # 头文件内容
+        if is_cpp:
+            header_code.append("#include <cstdint>")
+        else:
+            header_code.append("#include <stdint.h>")
+        
+        # 根据STM32系列和库函数类型选择不同的头文件
+        if mcu == "STM32F103":
+            if lib_type == "标准库":
+                header_code.append('#include "stm32f10x.h"')
+            elif lib_type == "HAL库":
+                header_code.append('#include "stm32f1xx_hal.h"')
+            elif lib_type == "LL库":
+                header_code.append('#include "stm32f1xx_ll_gpio.h"')
+                if peripheral in ["UART", "I2C", "SPI", "CAN", "ADC", "PWM", "TIM"]:
+                    header_code.append('#include "stm32f1xx_ll_' + peripheral.lower() + '.h"')
+        elif mcu == "STM32F407":
+            if lib_type == "标准库":
+                header_code.append('#include "stm32f4xx.h"')
+            elif lib_type == "HAL库":
+                header_code.append('#include "stm32f4xx_hal.h"')
+            elif lib_type == "LL库":
+                header_code.append('#include "stm32f4xx_ll_gpio.h"')
+                if peripheral in ["UART", "I2C", "SPI", "CAN", "ADC", "PWM", "TIM"]:
+                    header_code.append('#include "stm32f4xx_ll_' + peripheral.lower() + '.h"')
+        elif mcu == "STM32H743":
+            if lib_type == "HAL库":
+                header_code.append('#include "stm32h7xx_hal.h"')
+            elif lib_type == "LL库":
+                header_code.append('#include "stm32h7xx_ll_gpio.h"')
+                if peripheral in ["UART", "I2C", "SPI", "CAN", "ADC", "PWM", "TIM"]:
+                    header_code.append('#include "stm32h7xx_ll_' + peripheral.lower() + '.h"')
+        
+        header_code.append("")
+        
+        # 函数声明
+        if is_cpp:
+            header_code.append("class " + peripheral + "Driver {")
+            header_code.append("public:")
+            header_code.append("    static void init();")
+            # 添加外设操作函数声明
+            if peripheral == "GPIO":
+                header_code.append("    static void set_high();")
+                header_code.append("    static void set_low();")
+                header_code.append("    static void toggle();")
+                header_code.append("    static uint8_t read();")
+            elif peripheral == "UART":
+                header_code.append("    static void send_byte(uint8_t byte);")
+                header_code.append("    static void send_string(const char* str);")
+                header_code.append("    static uint8_t receive_byte();")
+                header_code.append("    static void receive_string(char* buffer, uint16_t length);")
+                header_code.append("    static void config_interrupt();")
+            elif peripheral == "I2C":
+                header_code.append("    static void start();")
+                header_code.append("    static void stop();")
+                header_code.append("    static void send_ack();")
+                header_code.append("    static void send_nack();")
+                header_code.append("    static uint8_t read_byte();")
+                header_code.append("    static void write_byte(uint8_t byte);")
+                header_code.append("    static uint8_t read_register(uint8_t slave_addr, uint8_t reg_addr);")
+                header_code.append("    static void write_register(uint8_t slave_addr, uint8_t reg_addr, uint8_t data);")
+            elif peripheral == "SPI":
+                header_code.append("    static uint8_t send_byte(uint8_t byte);")
+                header_code.append("    static uint8_t receive_byte();")
+                header_code.append("    static void send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length);")
+                header_code.append("    static void set_cs(uint8_t state);")
+            elif peripheral == "CAN":
+                header_code.append("    static void send_frame(uint32_t id, uint8_t* data, uint8_t length);")
+                header_code.append("    static uint8_t receive_frame(uint32_t* id, uint8_t* data, uint8_t* length);")
+                header_code.append("    static void config_filter();")
+                header_code.append("    static void config_interrupt();")
+            elif peripheral == "ADC":
+                header_code.append("    static void start_conversion();")
+                header_code.append("    static uint16_t read_value();")
+                header_code.append("    static void config_interrupt();")
+                header_code.append("    static float convert_to_voltage(uint16_t value);")
+            elif peripheral == "PWM":
+                header_code.append("    static void start();")
+                header_code.append("    static void stop();")
+                header_code.append("    static void set_duty(uint32_t duty);")
+                header_code.append("    static void set_frequency(uint32_t frequency);")
+            elif peripheral == "TIM":
+                header_code.append("    static void start();")
+                header_code.append("    static void stop();")
+                header_code.append("    static void config_interrupt();")
+                header_code.append("    static uint32_t get_count();")
+                header_code.append("    static void reset_count();")
+            header_code.append("};")
+            source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
+            source_code.append("")
+            source_code.append("void " + peripheral + "Driver::init() {")
+        else:
+            header_code.append("void " + peripheral + "_init(void);")
+            # 添加外设操作函数声明
+            if peripheral == "GPIO":
+                header_code.append("void GPIO_set_high(void);")
+                header_code.append("void GPIO_set_low(void);")
+                header_code.append("void GPIO_toggle(void);")
+                header_code.append("uint8_t GPIO_read(void);")
+            elif peripheral == "UART":
+                header_code.append("void UART_send_byte(uint8_t byte);")
+                header_code.append("void UART_send_string(const char* str);")
+                header_code.append("uint8_t UART_receive_byte(void);")
+                header_code.append("void UART_receive_string(char* buffer, uint16_t length);")
+                header_code.append("void UART_config_interrupt(void);")
+            elif peripheral == "I2C":
+                header_code.append("void I2C_start(void);")
+                header_code.append("void I2C_stop(void);")
+                header_code.append("void I2C_send_ack(void);")
+                header_code.append("void I2C_send_nack(void);")
+                header_code.append("uint8_t I2C_read_byte(void);")
+                header_code.append("void I2C_write_byte(uint8_t byte);")
+                header_code.append("uint8_t I2C_read_register(uint8_t slave_addr, uint8_t reg_addr);")
+                header_code.append("void I2C_write_register(uint8_t slave_addr, uint8_t reg_addr, uint8_t data);")
+            elif peripheral == "SPI":
+                header_code.append("uint8_t SPI_send_byte(uint8_t byte);")
+                header_code.append("uint8_t SPI_receive_byte(void);")
+                header_code.append("void SPI_send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length);")
+                header_code.append("void SPI_set_cs(uint8_t state);")
+            elif peripheral == "CAN":
+                header_code.append("void CAN_send_frame(uint32_t id, uint8_t* data, uint8_t length);")
+                header_code.append("uint8_t CAN_receive_frame(uint32_t* id, uint8_t* data, uint8_t* length);")
+                header_code.append("void CAN_config_filter(void);")
+                header_code.append("void CAN_config_interrupt(void);")
+            elif peripheral == "ADC":
+                header_code.append("void ADC_start_conversion(void);")
+                header_code.append("uint16_t ADC_read_value(void);")
+                header_code.append("void ADC_config_interrupt(void);")
+                header_code.append("float ADC_convert_to_voltage(uint16_t value);")
+            elif peripheral == "PWM":
+                header_code.append("void PWM_start(void);")
+                header_code.append("void PWM_stop(void);")
+                header_code.append("void PWM_set_duty(uint32_t duty);")
+                header_code.append("void PWM_set_frequency(uint32_t frequency);")
+            elif peripheral == "TIM":
+                header_code.append("void TIM_start(void);")
+                header_code.append("void TIM_stop(void);")
+                header_code.append("void TIM_config_interrupt(void);")
+                header_code.append("uint32_t TIM_get_count(void);")
+                header_code.append("void TIM_reset_count(void);")
+            source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
+            source_code.append("")
+            source_code.append("void " + peripheral + "_init(void) {")
+        
+        # 使用传入的外设参数
+        # params = self.peripheral_params[peripheral]
+        
+        # 根据库函数类型生成初始化代码
+        if lib_type == "标准库":
+            # 标准库初始化代码
+            if peripheral == "GPIO":
+                pin = params["pin"]
+                mode = params["mode"]
+                output_level = params["level"]
+                pull = params["pull"]
+                
+                # 解析引脚
+                # 假设引脚格式为"PA0"，提取端口字母"A"
+                port = pin[1] if pin[0] == "P" else pin[0]
+                pin_num = pin[2:] if pin[0] == "P" else pin[1:]
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                rcc_map = {"A": "RCC_APB2Periph_GPIOA", "B": "RCC_APB2Periph_GPIOB", "C": "RCC_APB2Periph_GPIOC", "D": "RCC_APB2Periph_GPIOD"}
+                pin_map = {"0": "GPIO_Pin_0", "1": "GPIO_Pin_1", "2": "GPIO_Pin_2", "3": "GPIO_Pin_3", "4": "GPIO_Pin_4", "5": "GPIO_Pin_5", "6": "GPIO_Pin_6", "7": "GPIO_Pin_7", "8": "GPIO_Pin_8", "9": "GPIO_Pin_9", "10": "GPIO_Pin_10", "11": "GPIO_Pin_11", "12": "GPIO_Pin_12", "13": "GPIO_Pin_13", "14": "GPIO_Pin_14", "15": "GPIO_Pin_15"}
+                
+                mode_map = {"输入": "GPIO_Mode_IN_FLOATING", "输出": "GPIO_Mode_Out_PP"}
+                pull_map = {"无": "", "上拉": "GPIO_Mode_IPU", "下拉": "GPIO_Mode_IPD"}
+                
+                source_code.extend([
+                    "    // GPIO初始化",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体",
+                    "    ",
+                    "    // 使能GPIO时钟",
+                    f"    RCC_APB2PeriphClockCmd({rcc_map[port]}, ENABLE);  // 使能{port_map[port]}时钟",
+                    "    ",
+                    "    // 配置GPIO引脚",
+                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[pin_num]};  // 选择引脚{pin}",
+                ])
+                
+                if mode == "输入":
+                    if pull != "无":
+                        source_code.append(f"    GPIO_InitStruct.GPIO_Mode = {pull_map[pull]};  // 配置为{pull}输入模式")
+                    else:
+                        source_code.append(f"    GPIO_InitStruct.GPIO_Mode = {mode_map[mode]};  // 配置为浮空输入模式")
+                else:
+                    source_code.append(f"    GPIO_InitStruct.GPIO_Mode = {mode_map[mode]};  // 配置为推挽输出模式")
+                    source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
+                
+                source_code.extend([
+                    f"    GPIO_Init({port_map[port]}, &GPIO_InitStruct);  // 应用GPIO配置",
+                    "    ",
+                    "    // 初始输出电平",
+                    f"    {'GPIO_SetBits(' + port_map[port] + ', ' + pin_map[pin_num] + ');  // 设置初始电平为高电平' if output_level == '高电平' else 'GPIO_ResetBits(' + port_map[port] + ', ' + pin_map[pin_num] + ');  // 设置初始电平为低电平'}"
+                ])
+            
+            elif peripheral == "UART":
+                baudrate = params["baudrate"]
+                data_bits = params["databits"]
+                parity = params["parity"]
+                stop_bits = params["stopbits"]
+                flow_control = params["flowcontrol"]
+                tx_pin = params["tx_pin"]
+                rx_pin = params["rx_pin"]
+                
+                # 解析引脚
+                tx_port = tx_pin[1] if tx_pin[0] == 'P' else tx_pin[0]
+                tx_num = tx_pin[2:] if tx_pin[0] == 'P' else tx_pin[1:]
+                rx_port = rx_pin[1] if rx_pin[0] == 'P' else rx_pin[0]
+                rx_num = rx_pin[2:] if rx_pin[0] == 'P' else rx_pin[1:]
+                
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                pin_map = {"0": "GPIO_Pin_0", "1": "GPIO_Pin_1", "2": "GPIO_Pin_2", "3": "GPIO_Pin_3", "4": "GPIO_Pin_4", "5": "GPIO_Pin_5", "6": "GPIO_Pin_6", "7": "GPIO_Pin_7", "8": "GPIO_Pin_8", "9": "GPIO_Pin_9", "10": "GPIO_Pin_10", "11": "GPIO_Pin_11", "12": "GPIO_Pin_12", "13": "GPIO_Pin_13", "14": "GPIO_Pin_14", "15": "GPIO_Pin_15"}
+                
+                data_bits_map = {"8位": "USART_WordLength_8b", "9位": "USART_WordLength_9b"}
+                parity_map = {"无校验": "USART_Parity_No", "奇校验": "USART_Parity_Odd", "偶校验": "USART_Parity_Even"}
+                stop_bits_map = {"1位": "USART_StopBits_1", "0.5位": "USART_StopBits_0_5", "2位": "USART_StopBits_2", "1.5位": "USART_StopBits_1_5"}
+                flow_control_map = {"关闭": "USART_HardwareFlowControl_None", "开启": "USART_HardwareFlowControl_RTS_CTS"}
+                
+                source_code.extend([
+                    "    // UART初始化",
+                    "    USART_InitTypeDef USART_InitStruct;",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;",
+                    "    ",
+                    "    // 使能时钟",
+                    "    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);",
+                    "    ",
+                    "    // 复用功能初始化",
+                    "    // 配置GPIO",
+                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[tx_num]}; // TX",
+                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;",
+                    "    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;",
+                    f"    GPIO_Init({port_map[tx_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[rx_num]}; // RX",
+                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;",
+                    f"    GPIO_Init({port_map[rx_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    "    // 配置UART",
+                    f"    USART_InitStruct.USART_BaudRate = {baudrate};",
+                    f"    USART_InitStruct.USART_WordLength = {data_bits_map[data_bits]};",
+                    f"    USART_InitStruct.USART_StopBits = {stop_bits_map[stop_bits]};",
+                    f"    USART_InitStruct.USART_Parity = {parity_map[parity]};",
+                    f"    USART_InitStruct.USART_HardwareFlowControl = {flow_control_map[flow_control]};",
+                    "    USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;",
+                    "    USART_Init(USART1, &USART_InitStruct);",
+                    "    ",
+                    "    // 使能UART",
+                    "    USART_Cmd(USART1, ENABLE);"
+                ])
+            
+            # 其他外设的标准库初始化代码...
+            
+        elif lib_type == "HAL库":
+            # HAL库初始化代码
+            if peripheral == "GPIO":
+                pin = params["pin"]
+                mode = params["mode"]
+                output_level = params["level"]
+                pull = params["pull"]
+                
+                # 解析引脚
+                # 假设引脚格式为"PA0"，提取端口字母"A"
+                port = pin[1] if pin[0] == "P" else pin[0]
+                pin_num = int(pin[2:] if pin[0] == "P" else pin[1:])
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                
+                mode_map = {"输入": "GPIO_MODE_INPUT", "输出": "GPIO_MODE_OUTPUT_PP"}
+                pull_map = {"无": "GPIO_NOPULL", "上拉": "GPIO_PULLUP", "下拉": "GPIO_PULLDOWN"}
+                
+                source_code.extend([
+                    "    // GPIO初始化",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体",
+                    "    ",
+                    "    // 使能GPIO时钟",
+                    f"    __HAL_RCC_{port_map[port]}_CLK_ENABLE();  // 使能{port_map[port]}时钟",
+                    "    ",
+                    "    // 配置GPIO引脚",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{pin_num};  // 选择引脚{pin}",
+                    f"    GPIO_InitStruct.Mode = {mode_map[mode]};  // 配置{mode}模式",
+                    f"    GPIO_InitStruct.Pull = {pull_map[pull]};  // 配置{pull}电阻",
+                ])
+                
+                if mode == "输出":
+                    source_code.append("    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;  // 配置输出速度为中等")
+                
+                source_code.extend([
+                    f"    HAL_GPIO_Init({port_map[port]}, &GPIO_InitStruct);  // 应用GPIO配置",
+                    "    ",
+                    "    // 初始输出电平",
+                    f"    HAL_GPIO_WritePin({port_map[port]}, GPIO_PIN_{pin_num}, {'GPIO_PIN_SET  // 设置初始电平为高电平' if output_level == '高电平' else 'GPIO_PIN_RESET  // 设置初始电平为低电平'});"
+                ])
+            
+            elif peripheral == "UART":
+                baudrate = params["baudrate"]
+                data_bits = params["databits"]
+                parity = params["parity"]
+                stop_bits = params["stopbits"]
+                flow_control = params["flowcontrol"]
+                tx_pin = params["tx_pin"]
+                rx_pin = params["rx_pin"]
+                
+                # 解析引脚
+                # 假设引脚格式为"PA0"，提取端口字母"A"
+                tx_port = tx_pin[1] if tx_pin[0] == "P" else tx_pin[0]
+                tx_num = int(tx_pin[2:] if tx_pin[0] == "P" else tx_pin[1:])
+                rx_port = rx_pin[1] if rx_pin[0] == "P" else rx_pin[0]
+                rx_num = int(rx_pin[2:] if rx_pin[0] == "P" else rx_pin[1:])
+                
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                
+                data_bits_map = {"8位": "UART_WORDLENGTH_8B", "9位": "UART_WORDLENGTH_9B"}
+                parity_map = {"无校验": "UART_PARITY_NONE", "奇校验": "UART_PARITY_ODD", "偶校验": "UART_PARITY_EVEN"}
+                stop_bits_map = {"1位": "UART_STOPBITS_1", "2位": "UART_STOPBITS_2"}
+                flow_control_map = {"关闭": "UART_HWCONTROL_NONE", "开启": "UART_HWCONTROL_RTS_CTS"}
+                
+                source_code.extend([
+                    "    // UART初始化",
+                    "    UART_HandleTypeDef huart;",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;",
+                    "    ",
+                    "    // 使能时钟",
+                    "    __HAL_RCC_USART1_CLK_ENABLE();",
+                    f"    __HAL_RCC_{port_map[tx_port]}_CLK_ENABLE();",
+                    f"    __HAL_RCC_{port_map[rx_port]}_CLK_ENABLE();",
+                    "    ",
+                    "    // 复用功能初始化",
+                    "    // 配置GPIO",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{tx_num}; // TX",
+                    "    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;",
+                    "    GPIO_InitStruct.Pull = GPIO_NOPULL;",
+                    "    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;",
+                    "    GPIO_InitStruct.Alternate = GPIO_AF7_USART1;",
+                    f"    HAL_GPIO_Init({port_map[tx_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{rx_num}; // RX",
+                    "    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;",
+                    "    GPIO_InitStruct.Pull = GPIO_NOPULL;",
+                    "    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;",
+                    "    GPIO_InitStruct.Alternate = GPIO_AF7_USART1;",
+                    f"    HAL_GPIO_Init({port_map[rx_port]}, &GPIO_InitStruct);",
+                    "    ",
+                    "    // 配置UART",
+                    "    huart.Instance = USART1;",
+                    f"    huart.Init.BaudRate = {baudrate};",
+                    f"    huart.Init.WordLength = {data_bits_map[data_bits]};",
+                    f"    huart.Init.StopBits = {stop_bits_map[stop_bits]};",
+                    f"    huart.Init.Parity = {parity_map[parity]};",
+                    f"    huart.Init.Mode = UART_MODE_TX_RX;",
+                    f"    huart.Init.HwFlowCtl = {flow_control_map[flow_control]};",
+                    "    huart.Init.OverSampling = UART_OVERSAMPLING_16;",
+                    "    if (HAL_UART_Init(&huart) != HAL_OK)",
+                    "    {",
+                    "        // 初始化错误处理",
+                    "        while(1);",
+                    "    }"
+                ])
+            
+            # 其他外设的HAL库初始化代码...
+            
+        elif lib_type == "LL库":
+            # LL库初始化代码
+            if peripheral == "GPIO":
+                pin = params["pin"]
+                mode = params["mode"]
+                output_level = params["level"]
+                pull = params["pull"]
+                
+                # 解析引脚
+                # 假设引脚格式为"PA0"，提取端口字母"A"
+                port = pin[1] if pin[0] == "P" else pin[0]
+                pin_num = int(pin[2:] if pin[0] == "P" else pin[1:])
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                
+                mode_map = {"输入": "LL_GPIO_MODE_INPUT", "输出": "LL_GPIO_MODE_OUTPUT"}
+                pull_map = {"无": "LL_GPIO_PULL_NO", "上拉": "LL_GPIO_PULL_UP", "下拉": "LL_GPIO_PULL_DOWN"}
+                
+                source_code.extend([
+                    "    // GPIO初始化",
+                    "    ",
+                    "    // 使能GPIO时钟",
+                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{port.upper()});  // 使能{port_map[port]}时钟",
+                    "    ",
+                    "    // 配置GPIO引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[port]}, LL_GPIO_PIN_{pin_num}, {mode_map[mode]});  // 配置{mode}模式",
+                    f"    LL_GPIO_SetPinPull({port_map[port]}, LL_GPIO_PIN_{pin_num}, {pull_map[pull]});  // 配置{pull}电阻",
+                ])
+                
+                if mode == "输出":
+                    source_code.append(f"    LL_GPIO_SetPinSpeed({port_map[port]}, LL_GPIO_PIN_{pin_num}, LL_GPIO_SPEED_FREQ_MEDIUM);  // 配置输出速度为中等")
+                
+                source_code.extend([
+                    "    ",
+                    "    // 初始输出电平",
+                    f"    {'LL_GPIO_SetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置初始电平为高电平' if output_level == '高电平' else 'LL_GPIO_ResetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置初始电平为低电平'}"
+                ])
+            
+            # 其他外设的LL库初始化代码...
+        
+        source_code.append("}")
+        source_code.append("")
+        
+        # 添加外设操作函数实现
+        if is_cpp:
+            if peripheral == "GPIO":
+                pin = params["pin"]
+                # 解析引脚
+                port = pin[1] if pin[0] == "P" else pin[0]
+                pin_num = int(pin[2:] if pin[0] == "P" else pin[1:])
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                
+                source_code.extend([
+                    f"void GPIO_driver::set_high() {{",
+                    "    // 设置引脚高电平",
+                    f"    {port_map[port]}->BSRR = GPIO_Pin_{pin_num};",
+                    "}",
+                    "",
+                    f"void GPIO_driver::set_low() {{",
+                    "    // 设置引脚低电平",
+                    f"    {port_map[port]}->BRR = GPIO_Pin_{pin_num};",
+                    "}",
+                    "",
+                    f"void GPIO_driver::toggle() {{",
+                    "    // 翻转引脚电平",
+                    f"    {port_map[port]}->ODR ^= GPIO_Pin_{pin_num};",
+                    "}",
+                    "",
+                    f"uint8_t GPIO_driver::read() {{",
+                    "    // 读取引脚电平",
+                    f"    return GPIO_ReadInputDataBit({port_map[port]}, GPIO_Pin_{pin_num});",
+                    "}"
+                ])
+            # 其他外设的C++操作函数实现...
+        else:
+            if peripheral == "GPIO":
+                pin = params["pin"]
+                # 解析引脚
+                port = pin[1] if pin[0] == "P" else pin[0]
+                pin_num = int(pin[2:] if pin[0] == "P" else pin[1:])
+                port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+                
+                source_code.extend([
+                    f"void GPIO_set_high(void) {{",
+                    "    // 设置引脚高电平",
+                    f"    {port_map[port]}->BSRR = GPIO_Pin_{pin_num};",
+                    "}",
+                    "",
+                    f"void GPIO_set_low(void) {{",
+                    "    // 设置引脚低电平",
+                    f"    {port_map[port]}->BRR = GPIO_Pin_{pin_num};",
+                    "}",
+                    "",
+                    f"void GPIO_toggle(void) {{",
+                    "    // 翻转引脚电平",
+                    f"    {port_map[port]}->ODR ^= GPIO_Pin_{pin_num};",
+                    "}",
+                    "",
+                    f"uint8_t GPIO_read(void) {{",
+                    "    // 读取引脚电平",
+                    f"    return GPIO_ReadInputDataBit({port_map[port]}, GPIO_Pin_{pin_num});",
+                    "}"
+                ])
+            # 其他外设的C操作函数实现...
+        
+        # 添加中断处理函数（如果需要）
+        if peripheral == "TIM":
+            source_code.extend([
+                "",
+                "// 定时器中断处理函数",
+                "void TIM2_IRQHandler(void) {",
+                "    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {",
+                "        // 处理定时器中断",
+                "        ",
+                "        // 清除中断标志位",
+                "        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);",
+                "    }",
+                "}"
+            ])
+        
+        return "\n".join(header_code), "\n".join(source_code)
+    
+    def generate_51_code(self, peripheral, language, lib_type, xtal, params):
+        """生成51系列代码"""
+        is_cpp = language == "C++语言"
+        header_code = []
+        source_code = []
+        
+        # 头文件内容
+        if is_cpp:
+            header_code.append('#include <c8051f020.h>')
+        else:
+            header_code.append('#include <reg51.h>')
+        
+        # 宏定义
+        header_code.extend([
+            "",
+            "// 宏定义",
+            f"#define FOSC {xtal * 1000000}L  // 系统晶振频率",
+            f"#define T1MS (65536 - FOSC/12/1000)  // 1ms定时器初值",
+            ""
+        ])
+        
+        # 使用传入的外设参数
+        # params = self.peripheral_params.get(peripheral, {})
+        pin = params.get('pin', 'P1_0')
+        baudrate = params.get('baudrate', 9600)
+        channel = params.get('channel', 0)
+        freq = params.get('frequency', 1000)
+        duty = params.get('duty', 50)
+        
+        # 计算波特率初值
+        if baudrate == 9600:
+            baud_value = 0xFD
+        elif baudrate == 4800:
+            baud_value = 0xFA
+        elif baudrate == 2400:
+            baud_value = 0xF4
+        elif baudrate == 1200:
+            baud_value = 0xE8
+        else:
+            baud_value = 0xFD  # 默认9600
+        
+        # 函数声明
+        if is_cpp:
+            header_code.append("class " + peripheral + "Driver {")
+            header_code.append("public:")
+            header_code.append("    static void init();")
+            if peripheral == "GPIO":
+                header_code.extend([
+                    "    static void setHigh();",
+                    "    static void setLow();",
+                    "    static void toggle();",
+                    "    static void set(uint8_t value);",
+                    "    static uint8_t get();"
+                ])
+            elif peripheral == "UART":
+                header_code.extend([
+                    "    static void send(uint8_t data);",
+                    "    static uint8_t receive();",
+                    "    static void sendString(const char *str);"
+                ])
+            header_code.append("};")
+            source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
+            source_code.append("")
+            source_code.append("void " + peripheral + "Driver::init() {")
+        else:
+            header_code.append("void " + peripheral + "_init(void);")
+            if peripheral == "GPIO":
+                header_code.extend([
+                    "void " + peripheral + "_setHigh(void);",
+                    "void " + peripheral + "_setLow(void);",
+                    "void " + peripheral + "_toggle(void);",
+                    "void " + peripheral + "_set(uint8_t value);",
+                    "uint8_t " + peripheral + "_get(void);"
+                ])
+            elif peripheral == "UART":
+                header_code.extend([
+                    "void " + peripheral + "_send(uint8_t data);",
+                    "uint8_t " + peripheral + "_receive(void);",
+                    "void " + peripheral + "_sendString(const char *str);"
+                ])
+            source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
+            source_code.append("")
+            source_code.append("void " + peripheral + "_init(void) {")
+        
+        # 根据外设生成初始化代码
+        if peripheral == "GPIO":
+            source_code.extend([
+                "    // GPIO初始化",
+                f"    {pin.rsplit('_', 1)[0]} = 0x00; // 初始化端口为低电平",
+                f"    {pin.rsplit('_', 1)[0]}DIR = 0xFF; // 设置端口为输出"
+            ])
+        elif peripheral == "UART":
+            source_code.extend([
+                "    // UART初始化",
+                "    TMOD = 0x20; // 定时器1工作在模式2",
+                f"    TH1 = 0x{baud_value:02X}; // 波特率{baudrate} @ {xtal}MHz",
+                f"    TL1 = 0x{baud_value:02X};",
+                "    PCON = 0x00; // 波特率不加倍",
+                "    SCON = 0x50; // 串口工作在模式1，允许接收",
+                "    TR1 = 1; // 启动定时器1",
+                "    ES = 1; // 允许串口中断",
+                "    EA = 1; // 允许总中断"
+            ])
+        elif peripheral == "I2C":
+            source_code.extend([
+                "    // I2C初始化",
+                "    // 51单片机没有硬件I2C，使用软件模拟",
+                "    SDA = 1; // 数据线拉高",
+                "    SCL = 1; // 时钟线拉高"
+            ])
+        elif peripheral == "SPI":
+            source_code.extend([
+                "    // SPI初始化",
+                "    // 51单片机没有硬件SPI，使用软件模拟",
+                "    // 配置相关引脚为输出",
+                "    SS = 1; // 片选拉高",
+                "    SCK = 0; // 时钟拉低",
+                "    MOSI = 0; // 主出从入拉低"
+            ])
+        elif peripheral == "CAN":
+            source_code.extend([
+                "    // CAN初始化",
+                "    // 51单片机没有硬件CAN，需要外接CAN控制器"
+            ])
+        elif peripheral == "ADC":
+            source_code.extend([
+                "    // ADC初始化",
+                "    // 51单片机没有硬件ADC，需要外接ADC芯片"
+            ])
+        elif peripheral == "PWM":
+            source_code.extend([
+                "    // PWM初始化",
+                "    // 使用定时器0生成PWM",
+                "    TMOD = 0x01; // 定时器0工作在模式1",
+                "    TH0 = 0xFF; // 初始值",
+                "    TL0 = 0x00;",
+                "    ET0 = 1; // 允许定时器0中断",
+                "    EA = 1; // 允许总中断",
+                "    TR0 = 1; // 启动定时器0"
+            ])
+        elif peripheral == "TIM":
+            source_code.extend([
+                "    // 定时器初始化",
+                "    TMOD = 0x01; // 定时器0工作在模式1",
+                "    TH0 = T1MS >> 8; // 1ms @ {xtal}MHz",
+                "    TL0 = T1MS & 0xFF;",
+                "    ET0 = 1; // 允许定时器0中断",
+                "    EA = 1; // 允许总中断",
+                "    TR0 = 1; // 启动定时器0"
+            ])
+        
+        source_code.append("}")
+        
+        # 添加操作函数
+        if is_cpp:
+            if peripheral == "GPIO":
+                source_code.extend([
+                    "",
+                    "void " + peripheral + "Driver::setHigh() {",
+                    f"    {pin} = 1; // 设置引脚高电平",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::setLow() {",
+                    f"    {pin} = 0; // 设置引脚低电平",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::toggle() {",
+                    f"    {pin} = ~{pin}; // 翻转引脚电平",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::set(uint8_t value) {",
+                    f"    {pin} = value; // 设置引脚电平",
+                    "}",
+                    "",
+                    "uint8_t " + peripheral + "Driver::get() {",
+                    f"    return {pin}; // 读取引脚电平",
+                    "}"
+                ])
+            elif peripheral == "UART":
+                source_code.extend([
+                    "",
+                    "void " + peripheral + "Driver::send(uint8_t data) {",
+                    "    SBUF = data; // 发送数据",
+                    "    while (!TI); // 等待发送完成",
+                    "    TI = 0; // 清除发送标志",
+                    "}",
+                    "",
+                    "uint8_t " + peripheral + "Driver::receive() {",
+                    "    while (!RI); // 等待接收完成",
+                    "    RI = 0; // 清除接收标志",
+                    "    return SBUF; // 返回接收到的数据",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::sendString(const char *str) {",
+                    "    while (*str) {",
+                    "        send(*str++);",
+                    "    }",
+                    "}"
+                ])
+        else:
+            if peripheral == "GPIO":
+                source_code.extend([
+                    "",
+                    "void " + peripheral + "_setHigh(void) {",
+                    f"    {pin} = 1; // 设置引脚高电平",
+                    "}",
+                    "",
+                    "void " + peripheral + "_setLow(void) {",
+                    f"    {pin} = 0; // 设置引脚低电平",
+                    "}",
+                    "",
+                    "void " + peripheral + "_toggle(void) {",
+                    f"    {pin} = ~{pin}; // 翻转引脚电平",
+                    "}",
+                    "",
+                    "void " + peripheral + "_set(uint8_t value) {",
+                    f"    {pin} = value; // 设置引脚电平",
+                    "}",
+                    "",
+                    "uint8_t " + peripheral + "_get(void) {",
+                    f"    return {pin}; // 读取引脚电平",
+                    "}"
+                ])
+            elif peripheral == "UART":
+                source_code.extend([
+                    "",
+                    "void " + peripheral + "_send(uint8_t data) {",
+                    "    SBUF = data; // 发送数据",
+                    "    while (!TI); // 等待发送完成",
+                    "    TI = 0; // 清除发送标志",
+                    "}",
+                    "",
+                    "uint8_t " + peripheral + "_receive(void) {",
+                    "    while (!RI); // 等待接收完成",
+                    "    RI = 0; // 清除接收标志",
+                    "    return SBUF; // 返回接收到的数据",
+                    "}",
+                    "",
+                    "void " + peripheral + "_sendString(const char *str) {",
+                    "    while (*str) {",
+                    "        " + peripheral + "_send(*str++);",
+                    "    }",
+                    "}"
+                ])
+        
+        # 添加中断处理函数（如果需要）
+        if peripheral in ["PWM", "TIM"]:
+            source_code.extend([
+                "",
+                "// 定时器0中断处理函数",
+                "void Timer0_ISR() interrupt 1 {",
+                "    static unsigned char count = 0;",
+                "    ",
+                "    // 重新加载定时器值",
+                "    TH0 = T1MS >> 8;",
+                "    TL0 = T1MS & 0xFF;",
+                "    ",
+                "    count++;",
+                "    if (count >= 1000) { // 1秒",
+                "        count = 0;",
+                "        // 在这里添加需要执行的代码",
+                "    }",
+                "}"
+            ])
+        
+        return "\n".join(header_code), "\n".join(source_code)
+    
+    def generate_esp32_code(self, peripheral, language, lib_type, xtal, params):
+        """生成ESP32代码"""
+        is_cpp = language == "C++语言"
+        header_code = []
+        source_code = []
+        
+        # 头文件内容
+        if is_cpp:
+            header_code.append('#include <cstdint>')
+        else:
+            header_code.append('#include <stdint.h>')
+        header_code.append('#include "freertos/FreeRTOS.h"')
+        header_code.append('#include "freertos/task.h"')
+        header_code.append('#include "driver/gpio.h"')
+        
+        # 根据外设添加相应的头文件
+        if peripheral == "UART":
+            header_code.append('#include "driver/uart.h"')
+        elif peripheral == "I2C":
+            header_code.append('#include "driver/i2c.h"')
+        elif peripheral == "SPI":
+            header_code.append('#include "driver/spi_master.h"')
+        elif peripheral == "CAN":
+            header_code.append('#include "driver/can.h"')
+        elif peripheral == "ADC":
+            header_code.append('#include "driver/adc.h"')
+        elif peripheral == "PWM":
+            header_code.append('#include "driver/ledc.h"')
+        elif peripheral == "TIM":
+            header_code.append('#include "driver/timer.h"')
+        
+        # 宏定义
+        header_code.extend([
+            "",
+            "// 宏定义",
+            f"#define XTAL_FREQ {xtal * 1000000}  // 系统晶振频率",
+            ""
+        ])
+        
+        # 使用传入的外设参数
+        # params = self.peripheral_params.get(peripheral, {})
+        pin = params.get('pin', 'GPIO_NUM_2')
+        baudrate = params.get('baudrate', 115200)
+        channel = params.get('channel', 0)
+        freq = params.get('frequency', 1000)
+        duty = params.get('duty', 50)
+        
+        # 函数声明
+        if is_cpp:
+            header_code.append("class " + peripheral + "Driver {")
+            header_code.append("public:")
+            header_code.append("    static esp_err_t init();")
+            if peripheral == "GPIO":
+                header_code.extend([
+                    "    static void setHigh();",
+                    "    static void setLow();",
+                    "    static void toggle();",
+                    "    static void set(uint8_t value);",
+                    "    static uint8_t get();"
+                ])
+            elif peripheral == "UART":
+                header_code.extend([
+                    "    static esp_err_t send(uint8_t data);",
+                    "    static esp_err_t receive(uint8_t *data);",
+                    "    static esp_err_t sendString(const char *str);"
+                ])
+            header_code.append("};")
+            source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
+            source_code.append("")
+            source_code.append("esp_err_t " + peripheral + "Driver::init() {")
+        else:
+            header_code.append("esp_err_t " + peripheral + "_init(void);")
+            if peripheral == "GPIO":
+                header_code.extend([
+                    "void " + peripheral + "_setHigh(void);",
+                    "void " + peripheral + "_setLow(void);",
+                    "void " + peripheral + "_toggle(void);",
+                    "void " + peripheral + "_set(uint8_t value);",
+                    "uint8_t " + peripheral + "_get(void);"
+                ])
+            elif peripheral == "UART":
+                header_code.extend([
+                    "esp_err_t " + peripheral + "_send(uint8_t data);",
+                    "esp_err_t " + peripheral + "_receive(uint8_t *data);",
+                    "esp_err_t " + peripheral + "_sendString(const char *str);"
+                ])
+            source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
+            source_code.append("")
+            source_code.append("esp_err_t " + peripheral + "_init(void) {")
+        
+        # 根据外设生成初始化代码
+        if peripheral == "GPIO":
+            source_code.extend([
+                "    // GPIO初始化",
+                "    gpio_config_t io_conf;",
+                "    ",
+                "    // 禁用中断",
+                "    io_conf.intr_type = GPIO_INTR_DISABLE;",
+                "    // 设置为输出模式",
+                "    io_conf.mode = GPIO_MODE_OUTPUT;",
+                "    // 位掩码设置要配置的引脚",
+                f"    io_conf.pin_bit_mask = (1ULL << {pin});",
+                "    // 禁用下拉模式",
+                "    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;",
+                "    // 禁用上拉模式",
+                "    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;",
+                "    // 配置GPIO",
+                "    gpio_config(&io_conf);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "UART":
+            source_code.extend([
+                "    // UART初始化",
+                "    uart_config_t uart_config = {",
+                f"        .baud_rate = {baudrate},",
+                "        .data_bits = UART_DATA_8_BITS,",
+                "        .parity = UART_PARITY_DISABLE,",
+                "        .stop_bits = UART_STOP_BITS_1,",
+                "        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,",
+                "        .source_clk = UART_SCLK_APB,",
+                "    };",
+                "    ",
+                "    // 配置UART参数",
+                "    uart_param_config(UART_NUM_0, &uart_config);",
+                "    ",
+                "    // 设置UART引脚",
+                "    uart_set_pin(UART_NUM_0, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);",
+                "    ",
+                "    // 安装UART驱动",
+                "    uart_driver_install(UART_NUM_0, 1024, 0, 0, NULL, 0);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "I2C":
+            source_code.extend([
+                "    // I2C初始化",
+                "    i2c_config_t conf;",
+                "    conf.mode = I2C_MODE_MASTER;",
+                "    conf.sda_io_num = GPIO_NUM_21;",
+                "    conf.sda_pullup_en = GPIO_PULLUP_ENABLE;",
+                "    conf.scl_io_num = GPIO_NUM_22;",
+                "    conf.scl_pullup_en = GPIO_PULLUP_ENABLE;",
+                "    conf.master.clk_speed = 100000; // 100kHz",
+                "    ",
+                "    i2c_param_config(I2C_NUM_0, &conf);",
+                "    i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "SPI":
+            source_code.extend([
+                "    // SPI初始化",
+                "    spi_bus_config_t bus_config = {",
+                "        .miso_io_num = GPIO_NUM_19,",
+                "        .mosi_io_num = GPIO_NUM_23,",
+                "        .sclk_io_num = GPIO_NUM_18,",
+                "        .quadwp_io_num = -1,",
+                "        .quadhd_io_num = -1,",
+                "        .max_transfer_sz = 4096,",
+                "    };",
+                "    ",
+                "    spi_bus_initialize(SPI2_HOST, &bus_config, SPI_DMA_CH_AUTO);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "CAN":
+            source_code.extend([
+                "    // CAN初始化",
+                "    can_general_config_t g_config = CAN_GENERAL_CONFIG_DEFAULT(GPIO_NUM_25, GPIO_NUM_26, CAN_MODE_NORMAL);",
+                "    can_timing_config_t t_config = CAN_TIMING_CONFIG_500KBITS();",
+                "    can_filter_config_t f_config = CAN_FILTER_CONFIG_ACCEPT_ALL();",
+                "    ",
+                "    can_driver_install(&g_config, &t_config, &f_config);",
+                "    can_start();",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "ADC":
+            source_code.extend([
+                "    // ADC初始化",
+                "    adc1_config_width(ADC_WIDTH_BIT_12);",
+                "    adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "PWM":
+            source_code.extend([
+                "    // PWM初始化",
+                "    ledc_timer_config_t timer_conf = {",
+                "        .duty_resolution = LEDC_TIMER_10_BIT,",
+                f"        .freq_hz = {freq},",
+                "        .speed_mode = LEDC_LOW_SPEED_MODE,",
+                f"        .timer_num = LEDC_TIMER_{channel},",
+                "    };",
+                "    ledc_timer_config(&timer_conf);",
+                "    ",
+                "    ledc_channel_config_t channel_conf = {",
+                f"        .gpio_num = {pin},",
+                "        .speed_mode = LEDC_LOW_SPEED_MODE,",
+                f"        .channel = LEDC_CHANNEL_{channel},",
+                f"        .timer_sel = LEDC_TIMER_{channel},",
+                f"        .duty = ({duty} * 1023) / 100, // 转换为10位占空比",
+                "    };",
+                "    ledc_channel_config(&channel_conf);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        elif peripheral == "TIM":
+            source_code.extend([
+                "    // 定时器初始化",
+                "    timer_config_t config = {",
+                "        .divider = 80,",
+                "        .counter_dir = TIMER_COUNT_UP,",
+                "        .counter_en = TIMER_PAUSE,",
+                "        .alarm_en = TIMER_ALARM_EN,",
+                "        .auto_reload = TIMER_AUTORELOAD_EN,",
+                "    };",
+                "    ",
+                "    timer_init(TIMER_GROUP_0, TIMER_0, &config);",
+                "    timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);",
+                "    timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, 1000000); // 1秒",
+                "    timer_enable_intr(TIMER_GROUP_0, TIMER_0);",
+                "    timer_start(TIMER_GROUP_0, TIMER_0);",
+                "    ",
+                "    return ESP_OK;"
+            ])
+        
+        source_code.append("}")
+        
+        # 添加GPIO操作函数
+        if peripheral == "GPIO":
+            if is_cpp:
+                source_code.extend([
+                    "",
+                    "void " + peripheral + "Driver::setHigh() {",
+                    f"    gpio_set_level({pin}, 1);",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::setLow() {",
+                    f"    gpio_set_level({pin}, 0);",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::toggle() {",
+                    f"    gpio_set_level({pin}, !gpio_get_level({pin}));",
+                    "}",
+                    "",
+                    "void " + peripheral + "Driver::set(uint8_t value) {",
+                    f"    gpio_set_level({pin}, value);",
+                    "}",
+                    "",
+                    "uint8_t " + peripheral + "Driver::get() {",
+                    f"    return gpio_get_level({pin});",
+                    "}"
+                ])
+            else:
+                source_code.extend([
+                    "",
+                    "void " + peripheral + "_setHigh(void) {",
+                    f"    gpio_set_level({pin}, 1);",
+                    "}",
+                    "",
+                    "void " + peripheral + "_setLow(void) {",
+                    f"    gpio_set_level({pin}, 0);",
+                    "}",
+                    "",
+                    "void " + peripheral + "_toggle(void) {",
+                    f"    gpio_set_level({pin}, !gpio_get_level({pin}));",
+                    "}",
+                    "",
+                    "void " + peripheral + "_set(uint8_t value) {",
+                    f"    gpio_set_level({pin}, value);",
+                    "}",
+                    "",
+                    "uint8_t " + peripheral + "_get(void) {",
+                    f"    return gpio_get_level({pin});",
+                    "}"
+                ])
+        
+        # 添加UART操作函数
+        elif peripheral == "UART":
+            if is_cpp:
+                source_code.extend([
+                    "",
+                    "esp_err_t " + peripheral + "Driver::send(uint8_t data) {",
+                    "    return uart_write_bytes(UART_NUM_0, (const char *)&data, 1);",
+                    "}",
+                    "",
+                    "esp_err_t " + peripheral + "Driver::receive(uint8_t *data) {",
+                    "    int len = uart_read_bytes(UART_NUM_0, data, 1, pdMS_TO_TICKS(100));",
+                    "    return len == 1 ? ESP_OK : ESP_FAIL;",
+                    "}",
+                    "",
+                    "esp_err_t " + peripheral + "Driver::sendString(const char *str) {",
+                    "    return uart_write_bytes(UART_NUM_0, str, strlen(str));",
+                    "}"
+                ])
+            else:
+                source_code.extend([
+                    "",
+                    "esp_err_t " + peripheral + "_send(uint8_t data) {",
+                    "    return uart_write_bytes(UART_NUM_0, (const char *)&data, 1);",
+                    "}",
+                    "",
+                    "esp_err_t " + peripheral + "_receive(uint8_t *data) {",
+                    "    int len = uart_read_bytes(UART_NUM_0, data, 1, pdMS_TO_TICKS(100));",
+                    "    return len == 1 ? ESP_OK : ESP_FAIL;",
+                    "}",
+                    "",
+                    "esp_err_t " + peripheral + "_sendString(const char *str) {",
+                    "    return uart_write_bytes(UART_NUM_0, str, strlen(str));",
+                    "}"
+                ])
+        
+        return "\n".join(header_code), "\n".join(source_code)
+    
+    def generate_gd32_code(self, peripheral, language, params):
+        """生成GD32代码"""
+        header_code = []
+        source_code = []
+        is_cpp = language == "C++语言"
+        
+        # 头文件
+        if is_cpp:
+            header_code.append('#include <cstdint>')
+        else:
+            header_code.append('#include <stdint.h>')
+        header_code.append('#include "gd32f10x.h"')
+        
+        header_code.append("")
+        
+        # 函数声明
+        if is_cpp:
+            header_code.append("class " + peripheral + "Driver {")
+            header_code.append("public:")
+            header_code.append("    static void init();")
+            header_code.append("};")
+        else:
+            header_code.append("void " + peripheral + "_init(void);")
+        
+        # 源文件包含头文件
+        source_code.extend([
+            f"#include \"{peripheral.lower()}_driver.h\""
+        ])
+        
+        # 函数实现
+        if is_cpp:
+            source_code.append("void " + peripheral + "Driver::init() {")
+        else:
+            source_code.append("void " + peripheral + "_init(void) {")
+        
+        # 根据外设生成初始化代码
+        if peripheral == "GPIO":
+            pin = params.get('pin', 'PA0')
+            mode = params.get('mode', '输出')
+            level = params.get('level', '低')
+            pull = params.get('pull', '无')
+            
+            # 解析引脚
+            port = pin[1] if pin[0] == 'P' else pin[0]
+            pin_num = pin[2:] if pin[0] == 'P' else pin[1:]
+            
+            port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+            rcu_map = {"A": "RCU_GPIOA", "B": "RCU_GPIOB", "C": "RCU_GPIOC", "D": "RCU_GPIOD"}
+            pin_map = {"0": "GPIO_PIN_0", "1": "GPIO_PIN_1", "2": "GPIO_PIN_2", "3": "GPIO_PIN_3", "4": "GPIO_PIN_4", "5": "GPIO_PIN_5", "6": "GPIO_PIN_6", "7": "GPIO_PIN_7", "8": "GPIO_PIN_8", "9": "GPIO_PIN_9", "10": "GPIO_PIN_10", "11": "GPIO_PIN_11", "12": "GPIO_PIN_12", "13": "GPIO_PIN_13", "14": "GPIO_PIN_14", "15": "GPIO_PIN_15"}
+            
+            mode_map = {"输入": "GPIO_MODE_IN_FLOATING", "输出": "GPIO_MODE_OUT_PP"}
+            pull_map = {"无": "GPIO_MODE_IN_FLOATING", "上拉": "GPIO_MODE_IPU", "下拉": "GPIO_MODE_IPD"}
+            
+            source_code.extend([
+                "    // GPIO初始化",
+                f"    rcu_periph_clock_enable({rcu_map[port]});",
+                "    ",
+                f"    // 配置{pin}为{mode}",
+            ])
+            
+            if mode == "输入":
+                if pull != "无":
+                    source_code.append(f"    gpio_init({port_map[port]}, {pull_map[pull]}, GPIO_OSPEED_50MHZ, {pin_map[pin_num]});")
+                else:
+                    source_code.append(f"    gpio_init({port_map[port]}, {mode_map[mode]}, GPIO_OSPEED_50MHZ, {pin_map[pin_num]});")
+            else:
+                source_code.append(f"    gpio_init({port_map[port]}, {mode_map[mode]}, GPIO_OSPEED_50MHZ, {pin_map[pin_num]});")
+                source_code.append(f"    {'gpio_bit_set(' + port_map[port] + ', ' + pin_map[pin_num] + ');' if level == '高' else 'gpio_bit_reset(' + port_map[port] + ', ' + pin_map[pin_num] + ');'}")
+        elif peripheral == "UART":
+            baudrate = params.get('baudrate', 9600)
+            tx_pin = params.get('tx_pin', 'PA9')
+            rx_pin = params.get('rx_pin', 'PA10')
+            
+            # 解析引脚
+            tx_port = tx_pin[1] if tx_pin[0] == 'P' else tx_pin[0]
+            tx_num = tx_pin[2:] if tx_pin[0] == 'P' else tx_pin[1:]
+            rx_port = rx_pin[1] if rx_pin[0] == 'P' else rx_pin[0]
+            rx_num = rx_pin[2:] if rx_pin[0] == 'P' else rx_pin[1:]
+            
+            port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
+            rcu_map = {"A": "RCU_GPIOA", "B": "RCU_GPIOB", "C": "RCU_GPIOC", "D": "RCU_GPIOD"}
+            pin_map = {"0": "GPIO_PIN_0", "1": "GPIO_PIN_1", "2": "GPIO_PIN_2", "3": "GPIO_PIN_3", "4": "GPIO_PIN_4", "5": "GPIO_PIN_5", "6": "GPIO_PIN_6", "7": "GPIO_PIN_7", "8": "GPIO_PIN_8", "9": "GPIO_PIN_9", "10": "GPIO_PIN_10", "11": "GPIO_PIN_11", "12": "GPIO_PIN_12", "13": "GPIO_PIN_13", "14": "GPIO_PIN_14", "15": "GPIO_PIN_15"}
+            
+            source_code.extend([
+                "    // UART初始化",
+                "    rcu_periph_clock_enable(RCU_USART0);",
+                f"    rcu_periph_clock_enable({rcu_map[tx_port]});",
+                "    ",
+                "    // 配置GPIO",
+                f"    gpio_init({port_map[tx_port]}, GPIO_MODE_AF_PP, GPIO_OSPEED_50MHZ, {pin_map[tx_num]}); // TX",
+                f"    gpio_init({port_map[rx_port]}, GPIO_MODE_IN_FLOATING, GPIO_OSPEED_50MHZ, {pin_map[rx_num]}); // RX",
+                "    ",
+                "    // 配置UART",
+                "    usart_deinit(USART0);",
+                f"    usart_baudrate_set(USART0, {baudrate});",
+                "    usart_word_length_set(USART0, USART_WL_8BIT);",
+                "    usart_stop_bit_set(USART0, USART_STB_1BIT);",
+                "    usart_parity_config(USART0, USART_PM_NONE);",
+                "    usart_hardware_flow_rts_config(USART0, USART_RTS_DISABLE);",
+                "    usart_hardware_flow_cts_config(USART0, USART_CTS_DISABLE);",
+                "    usart_receive_config(USART0, USART_RECEIVE_ENABLE);",
+                "    usart_transmit_config(USART0, USART_TRANSMIT_ENABLE);",
+                "    usart_enable(USART0);"
+            ])
+        elif peripheral == "I2C":
+            source_code.extend([
+                "    // I2C初始化",
+                "    rcu_periph_clock_enable(RCU_I2C0);",
+                "    rcu_periph_clock_enable(RCU_GPIOB);",
+                "    ",
+                "    // 配置GPIO",
+                "    gpio_init(GPIOB, GPIO_MODE_AF_OD, GPIO_OSPEED_50MHZ, GPIO_PIN_6 | GPIO_PIN_7); // SCL, SDA",
+                "    ",
+                "    // 配置I2C",
+                "    i2c_deinit(I2C0);",
+                "    i2c_clock_config(I2C0, 100000, I2C_DTCY_2);",
+                "    i2c_mode_config(I2C0, I2C_MODE_I2C);",
+                "    i2c_ack_config(I2C0, I2C_ACK_ENABLE);",
+                "    i2c_enable(I2C0);"
+            ])
+        elif peripheral == "SPI":
+            source_code.extend([
+                "    // SPI初始化",
+                "    rcu_periph_clock_enable(RCU_SPI0);",
+                "    rcu_periph_clock_enable(RCU_GPIOA);",
+                "    ",
+                "    // 配置GPIO",
+                "    gpio_init(GPIOA, GPIO_MODE_AF_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7); // SCK, MISO, MOSI",
+                "    gpio_init(GPIOA, GPIO_MODE_OUT_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_4); // NSS",
+                "    ",
+                "    // 配置SPI",
+                "    spi_deinit(SPI0);",
+                "    spi_init(SPI0, SPI_MODE_MASTER, SPI_FRAME_FORMAT_8BIT, SPI_NSS_SOFT, 16, SPI_FIRSTBIT_MSB);",
+                "    spi_enable(SPI0);"
+            ])
+        elif peripheral == "CAN":
+            source_code.extend([
+                "    // CAN初始化",
+                "    rcu_periph_clock_enable(RCU_CAN0);",
+                "    rcu_periph_clock_enable(RCU_GPIOA);",
+                "    ",
+                "    // 配置GPIO",
+                "    gpio_init(GPIOA, GPIO_MODE_AF_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_11 | GPIO_PIN_12); // CAN_RX, CAN_TX",
+                "    ",
+                "    // 配置CAN",
+                "    can_deinit(CAN0);",
+                "    can_struct_para_init(CAN_INIT_STRUCT);",
+                "    can_init_struct.can_timing = CAN_TIMING_CONFIG_500KBPS(48000000);",
+                "    can_init_struct.can_mode = CAN_MODE_NORMAL;",
+                "    can_init_struct.can_sJW = CAN_SJW_1TQ;",
+                "    can_init_struct.can_BS1 = CAN_BS1_8TQ;",
+                "    can_init_struct.can_BS2 = CAN_BS2_7TQ;",
+                "    can_init_struct.can_prescaler = 6; // 500kHz @ 48MHz",
+                "    can_init(CAN0, &can_init_struct);",
+                "    ",
+                "    // 配置过滤器",
+                "    can_struct_para_init(CAN_FILTER_STRUCT);",
+                "    can_filter_struct.can_filter_number = 0;",
+                "    can_filter_struct.can_filter_mode = CAN_FILTERMODE_MASK;",
+                "    can_filter_struct.can_filter_scale = CAN_FILTERSCALE_32BIT;",
+                "    can_filter_struct.can_filter_id_high = 0x0000;",
+                "    can_filter_struct.can_filter_id_low = 0x0000;",
+                "    can_filter_struct.can_filter_mask_id_high = 0x0000;",
+                "    can_filter_struct.can_filter_mask_id_low = 0x0000;",
+                "    can_filter_struct.can_filter_fifo_number = CAN_FIFO0;",
+                "    can_filter_enable(CAN0, &can_filter_struct);"
+            ])
+        elif peripheral == "ADC":
+            source_code.extend([
+                "    // ADC初始化",
+                "    rcu_periph_clock_enable(RCU_ADC0);",
+                "    rcu_periph_clock_enable(RCU_GPIOA);",
+                "    ",
+                "    // 配置GPIO",
+                "    gpio_init(GPIOA, GPIO_MODE_AIN, GPIO_OSPEED_50MHZ, GPIO_PIN_0); // ADC通道0",
+                "    ",
+                "    // 配置ADC",
+                "    adc_deinit(ADC0);",
+                "    rcu_adc_clock_config(RCU_CKADC_CKAPB2_DIV8);",
+                "    adc_special_function_config(ADC0, ADC_SCAN_MODE, DISABLE);",
+                "    adc_special_function_config(ADC0, ADC_CONTINUOUS_MODE, DISABLE);",
+                "    adc_external_trigger_source_config(ADC0, ADC_REGULAR_CHANNEL, ADC0_1_2_EXTTRIG_REGULAR_NONE);",
+                "    adc_data_alignment_config(ADC0, ADC_DATAALIGN_RIGHT);",
+                "    adc_channel_length_config(ADC0, ADC_REGULAR_CHANNEL, 1);",
+                "    adc_regular_channel_config(ADC0, 0, ADC_CHANNEL_0, ADC_SAMPLETIME_239POINT5);",
+                "    adc_enable(ADC0);",
+                "    ",
+                "    // 校准ADC",
+                "    adc_calibration_enable(ADC0);"
+            ])
+        elif peripheral == "PWM":
+            source_code.extend([
+                "    // PWM初始化",
+                "    rcu_periph_clock_enable(RCU_TIMER1);",
+                "    rcu_periph_clock_enable(RCU_GPIOA);",
+                "    ",
+                "    // 配置GPIO",
+                "    gpio_init(GPIOA, GPIO_MODE_AF_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_8); // TIM1_CH1",
+                "    ",
+                "    // 配置定时器",
+                "    timer_deinit(TIM1);",
+                "    timer_prescaler_config(TIM1, 71, TIMER_PSC_RELOAD_NOW);",
+                "    timer_autoreload_value_config(TIM1, 999);",
+                "    timer_ckd_config(TIM1, TIMER_CKD_DIV1);",
+                "    timer_master_mode_select(TIM1, TIMER_MASTER_MODE_DISABLE);",
+                "    timer_overflow_direction_config(TIM1, TIMER_COUNTER_UP);",
+                "    timer_repetition_counter_config(TIM1, 0);",
+                "    ",
+                "    // 配置PWM",
+                "    timer_oc_parameter_struct timer_ocintpara;",
+                "    timer_oc_struct_para_init(&timer_ocintpara);",
+                "    timer_ocintpara.timer_oc_mode = TIMER_OC_MODE_PWM1;",
+                "    timer_ocintpara.timer_output_state = TIMER_CCX_ENABLE;",
+                "    timer_ocintpara.timer_output_nstate = TIMER_CCXN_DISABLE;",
+                "    timer_ocintpara.timer_pulse = 500; // 50% duty cycle",
+                "    timer_ocintpara.timer_oc_polarity = TIMER_OC_POLARITY_HIGH;",
+                "    timer_ocintpara.timer_oc_npolarity = TIMER_OCN_POLARITY_HIGH;",
+                "    timer_ocintpara.timer_oc_idle_state = TIMER_OC_IDLE_STATE_LOW;",
+                "    timer_ocintpara.timer_oc_nidle_state = TIMER_OCN_IDLE_STATE_LOW;",
+                "    timer_channel_output_config(TIM1, TIMER_CH_1, &timer_ocintpara);",
+                "    ",
+                "    // 使能输出",
+                "    timer_channel_output_state_config(TIM1, TIMER_CH_1, TIMER_CCX_ENABLE);",
+                "    timer_primary_output_config(TIM1, ENABLE);",
+                "    ",
+                "    // 启动定时器",
+                "    timer_enable(TIM1);"
+            ])
+        elif peripheral == "TIM":
+            source_code.extend([
+                "    // 定时器初始化",
+                "    rcu_periph_clock_enable(RCU_TIMER2);",
+                "    ",
+                "    // 配置定时器",
+                "    timer_deinit(TIM2);",
+                "    timer_prescaler_config(TIM2, 71, TIMER_PSC_RELOAD_NOW);",
+                "    timer_autoreload_value_config(TIM2, 999);",
+                "    timer_ckd_config(TIM2, TIMER_CKD_DIV1);",
+                "    timer_master_mode_select(TIM2, TIMER_MASTER_MODE_DISABLE);",
+                "    timer_overflow_direction_config(TIM2, TIMER_COUNTER_UP);",
+                "    timer_repetition_counter_config(TIM2, 0);",
+                "    ",
+                "    // 配置中断",
+                "    nvic_irq_enable(TIMER2_IRQn, 0, 0);",
+                "    timer_interrupt_enable(TIM2, TIMER_INT_UP);",
+                "    ",
+                "    // 启动定时器",
+                "    timer_enable(TIM2);"
+            ])
+        
+        source_code.append("}")
+        
+        # 添加中断处理函数（如果需要）
+        if peripheral == "TIM":
+            source_code.extend([
+                "",
+                "// 定时器中断处理函数",
+                "void TIMER2_IRQHandler(void) {",
+                "    if(timer_flag_get(TIMER2, TIMER_FLAG_UP)) {",
+                "        // 处理定时器中断",
+                "        ",
+                "        // 清除中断标志位",
+                "        timer_flag_clear(TIMER2, TIMER_FLAG_UP);",
+                "    }",
+                "}"
+            ])
+        
+        return "\n".join(header_code), "\n".join(source_code)
+    
+    def generate_hc32_code(self, peripheral, language, params):
+        """生成HC32代码"""
+        header_code = []
+        source_code = []
+        is_cpp = language == "C++语言"
+        
+        # 头文件
+        if is_cpp:
+            header_code.append('#include <cstdint>')
+        else:
+            header_code.append('#include <stdint.h>')
+        header_code.append('#include "hc32l136.h"')
+        
+        header_code.append("")
+        
+        # 函数声明
+        if is_cpp:
+            header_code.append("class " + peripheral + "Driver {")
+            header_code.append("public:")
+            header_code.append("    static void init();")
+            header_code.append("};")
+        else:
+            header_code.append("void " + peripheral + "_init(void);")
+        
+        # 源文件包含头文件
+        source_code.extend([
+            f"#include \"{peripheral.lower()}_driver.h\""
+        ])
+        
+        # 函数实现
+        if is_cpp:
+            source_code.append("void " + peripheral + "Driver::init() {")
+        else:
+            source_code.append("void " + peripheral + "_init(void) {")
+        
+        # 根据外设生成初始化代码
+        if peripheral == "GPIO":
+            pin = params.get('pin', 'PA0')
+            mode = params.get('mode', '输出')
+            level = params.get('level', '低')
+            
+            # 解析引脚
+            port = pin[1] if pin[0] == 'P' else pin[0]
+            pin_num = int(pin[2:]) if pin[0] == 'P' else int(pin[1:])
+            
+            port_map = {"A": "GpioPortA", "B": "GpioPortB", "C": "GpioPortC", "D": "GpioPortD"}
+            pin_map = {0: "GpioPin0", 1: "GpioPin1", 2: "GpioPin2", 3: "GpioPin3", 4: "GpioPin4", 5: "GpioPin5", 6: "GpioPin6", 7: "GpioPin7", 8: "GpioPin8", 9: "GpioPin9", 10: "GpioPin10", 11: "GpioPin11", 12: "GpioPin12", 13: "GpioPin13", 14: "GpioPin14", 15: "GpioPin15"}
+            
+            source_code.extend([
+                "    // GPIO初始化",
+                "    stc_gpio_cfg_t stcGpioCfg;",
+                "    ",
+                "    // 使能GPIO时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralGpio, TRUE);",
+                "    ",
+                "    // 配置GPIO",
+                "    Gpio_StructInit(&stcGpioCfg);",
+                f"    stcGpioCfg.enDir = {'GpioDirOut' if mode == '输出' else 'GpioDirIn'}; // {mode}模式",
+                f"    Gpio_Init({port_map[port]}, {pin_map[pin_num]}, &stcGpioCfg); // {pin}"
+            ])
+            
+            if mode == "输出":
+                source_code.append(f"    Gpio_Write({port_map[port]}, {pin_map[pin_num]}, {'TRUE' if level == '高' else 'FALSE'}); // 初始{level}电平")
+        elif peripheral == "UART":
+            source_code.extend([
+                "    // UART初始化",
+                "    stc_uart_cfg_t stcUartCfg;",
+                "    stc_gpio_cfg_t stcGpioCfg;",
+                "    ",
+                "    // 使能时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralGpio, TRUE);",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralUart0, TRUE);",
+                "    ",
+                "    // 配置GPIO",
+                "    Gpio_StructInit(&stcGpioCfg);",
+                "    stcGpioCfg.enDir = GpioDirOut; // 输出模式",
+                "    stcGpioCfg.enPu = GpioPuEnable; // 上拉使能",
+                "    Gpio_Init(GpioPortA, GpioPin9, &stcGpioCfg); // TX",
+                "    ",
+                "    stcGpioCfg.enDir = GpioDirIn; // 输入模式",
+                "    Gpio_Init(GpioPortA, GpioPin10, &stcGpioCfg); // RX",
+                "    ",
+                "    // 配置UART",
+                "    Uart_StructInit(&stcUartCfg);",
+                "    stcUartCfg.enBaudrate = 115200; // 波特率",
+                "    stcUartCfg.enDataBits = UartDataBits8; // 8位数据",
+                "    stcUartCfg.enStopBits = UartStopBits1; // 1位停止位",
+                "    stcUartCfg.enParity = UartParityNone; // 无校验",
+                "    Uart_Init(M0P_UART0, &stcUartCfg);",
+                "    ",
+                "    // 使能UART",
+                "    Uart_Enable(M0P_UART0);"
+            ])
+        elif peripheral == "I2C":
+            source_code.extend([
+                "    // I2C初始化",
+                "    stc_i2c_cfg_t stcI2cCfg;",
+                "    stc_gpio_cfg_t stcGpioCfg;",
+                "    ",
+                "    // 使能时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralGpio, TRUE);",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralI2c0, TRUE);",
+                "    ",
+                "    // 配置GPIO",
+                "    Gpio_StructInit(&stcGpioCfg);",
+                "    stcGpioCfg.enDir = GpioDirOut; // 输出模式",
+                "    stcGpioCfg.enOD = GpioOdEnable; // 开漏输出",
+                "    stcGpioCfg.enPu = GpioPuEnable; // 上拉使能",
+                "    Gpio_Init(GpioPortB, GpioPin6, &stcGpioCfg); // SCL",
+                "    Gpio_Init(GpioPortB, GpioPin7, &stcGpioCfg); // SDA",
+                "    ",
+                "    // 配置I2C",
+                "    I2c_StructInit(&stcI2cCfg);",
+                "    stcI2cCfg.u32Baud = 100000; // 100kHz",
+                "    I2c_Init(M0P_I2C0, &stcI2cCfg);",
+                "    ",
+                "    // 使能I2C",
+                "    I2c_Enable(M0P_I2C0);"
+            ])
+        elif peripheral == "SPI":
+            source_code.extend([
+                "    // SPI初始化",
+                "    stc_spi_cfg_t stcSpiCfg;",
+                "    stc_gpio_cfg_t stcGpioCfg;",
+                "    ",
+                "    // 使能时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralGpio, TRUE);",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralSpi, TRUE);",
+                "    ",
+                "    // 配置GPIO",
+                "    Gpio_StructInit(&stcGpioCfg);",
+                "    stcGpioCfg.enDir = GpioDirOut; // 输出模式",
+                "    stcGpioCfg.enPu = GpioPuEnable; // 上拉使能",
+                "    Gpio_Init(GpioPortA, GpioPin5, &stcGpioCfg); // SCK",
+                "    Gpio_Init(GpioPortA, GpioPin7, &stcGpioCfg); // MOSI",
+                "    ",
+                "    stcGpioCfg.enDir = GpioDirIn; // 输入模式",
+                "    Gpio_Init(GpioPortA, GpioPin6, &stcGpioCfg); // MISO",
+                "    ",
+                "    // 配置SPI",
+                "    Spi_StructInit(&stcSpiCfg);",
+                "    stcSpiCfg.enSpiMode = SpiMskMaster; // 主模式",
+                "    stcSpiCfg.enClkDiv = SpiClkDiv8; // 时钟分频",
+                "    stcSpiCfg.enCPOL = SpiMskCPOL_High; // 时钟极性",
+                "    stcSpiCfg.enCPHA = SpiMskCPHA_2Edge; // 时钟相位",
+                "    Spi_Init(M0P_SPI, &stcSpiCfg);",
+                "    ",
+                "    // 使能SPI",
+                "    Spi_Enable(M0P_SPI);"
+            ])
+        elif peripheral == "CAN":
+            source_code.extend([
+                "    // CAN初始化",
+                "    // HC32L136不支持CAN接口"
+            ])
+        elif peripheral == "ADC":
+            source_code.extend([
+                "    // ADC初始化",
+                "    stc_adc_cfg_t stcAdcCfg;",
+                "    stc_gpio_cfg_t stcGpioCfg;",
+                "    ",
+                "    // 使能时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralGpio, TRUE);",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralAdc, TRUE);",
+                "    ",
+                "    // 配置GPIO",
+                "    Gpio_StructInit(&stcGpioCfg);",
+                "    stcGpioCfg.enDir = GpioDirIn; // 输入模式",
+                "    Gpio_Init(GpioPortA, GpioPin0, &stcGpioCfg); // ADC通道0",
+                "    ",
+                "    // 配置ADC",
+                "    Adc_StructInit(&stcAdcCfg);",
+                "    stcAdcCfg.enAdcMode = AdcMskSglMode; // 单次模式",
+                "    stcAdcCfg.enAdcClkDiv = AdcMskClkDiv16; // 时钟分频",
+                "    Adc_Init(&stcAdcCfg);",
+                "    ",
+                "    // 使能ADC",
+                "    Adc_Enable();"
+            ])
+        elif peripheral == "PWM":
+            source_code.extend([
+                "    // PWM初始化",
+                "    stc_bt_cfg_t stcBtCfg;",
+                "    stc_gpio_cfg_t stcGpioCfg;",
+                "    ",
+                "    // 使能时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralGpio, TRUE);",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralBt, TRUE);",
+                "    ",
+                "    // 配置GPIO",
+                "    Gpio_StructInit(&stcGpioCfg);",
+                "    stcGpioCfg.enDir = GpioDirOut; // 输出模式",
+                "    stcGpioCfg.enPu = GpioPuEnable; // 上拉使能",
+                "    Gpio_Init(GpioPortA, GpioPin1, &stcGpioCfg); // BT0_CHA",
+                "    ",
+                "    // 配置BT",
+                "    Bt_StructInit(&stcBtCfg);",
+                "    stcBtCfg.enMode = BtMskModeTimer; // 定时器模式",
+                "    stcBtCfg.enCntMode = BtMskCntModeSawtooth; // 锯齿波计数",
+                "    stcBtCfg.enPwmMode = BtMskPwmMode2; // PWM模式2",
+                "    stcBtCfg.u16CmpValA = 500; // 比较值A",
+                "    stcBtCfg.u16ArrVal = 1000; // 自动重装载值",
+                "    Bt_Init(M0P_BT0, &stcBtCfg);",
+                "    ",
+                "    // 使能BT",
+                "    Bt_Enable(M0P_BT0);"
+            ])
+        elif peripheral == "TIM":
+            source_code.extend([
+                "    // 定时器初始化",
+                "    stc_bt_cfg_t stcBtCfg;",
+                "    ",
+                "    // 使能时钟",
+                "    Sysctrl_SetPeripheralGate(SysctrlPeripheralBt, TRUE);",
+                "    ",
+                "    // 配置BT",
+                "    Bt_StructInit(&stcBtCfg);",
+                "    stcBtCfg.enMode = BtMskModeTimer; // 定时器模式",
+                "    stcBtCfg.enCntMode = BtMskCntModeSawtooth; // 锯齿波计数",
+                "    stcBtCfg.u16ArrVal = 1000; // 自动重装载值",
+                "    Bt_Init(M0P_BT0, &stcBtCfg);",
+                "    ",
+                "    // 配置中断",
+                "    EnableNvic(BT0_IRQn, IrqLevel3, TRUE);",
+                "    Bt_IntCmd(M0P_BT0, BtUevIrq, TRUE);",
+                "    ",
+                "    // 使能BT",
+                "    Bt_Enable(M0P_BT0);"
+            ])
+        
+        source_code.append("}")
+        
+        # 添加中断处理函数（如果需要）
+        if peripheral == "TIM":
+            source_code.extend([
+                "",
+                "// 定时器中断处理函数",
+                "void BT0_IRQHandler(void) {",
+                "    if(Bt_GetIntFlag(M0P_BT0, BtUevIrq)) {",
+                "        // 处理定时器中断",
+                "        ",
+                "        // 清除中断标志位",
+                "        Bt_ClearIntFlag(M0P_BT0, BtUevIrq);",
+                "    }",
+                "}"
+            ])
+        
+        return "\n".join(header_code), "\n".join(source_code)
+    
+    def generate_same70_code(self, peripheral, language, lib_type, xtal, params):
+        """生成ATSAME70代码"""
+        header_code = []
+        source_code = []
+        is_cpp = language == "C++语言"
+        
+        # 头文件
+        if is_cpp:
+            header_code.append('#include <cstdint>')
+        else:
+            header_code.append('#include <stdint.h>')
+        header_code.append('#include "sam.h"')
+        
+        header_code.append("")
+        
+        # 函数声明
+        if is_cpp:
+            header_code.append("class " + peripheral + "Driver {")
+            header_code.append("public:")
+            header_code.append("    static void init();")
+            header_code.append("};")
+        else:
+            header_code.append("void " + peripheral + "_init(void);")
+        
+        # 源文件包含头文件
+        source_code.extend([
+            f"#include \"{peripheral.lower()}_driver.h\""
+        ])
+        
+        # 函数实现
+        if is_cpp:
+            source_code.append("void " + peripheral + "Driver::init() {")
+        else:
+            source_code.append("void " + peripheral + "_init(void) {")
+        
+        # 根据外设生成初始化代码
+        if peripheral == "GPIO":
+            pin = params.get('pin', 'PA0')
+            mode = params.get('mode', '输出')
+            level = params.get('level', '低')
+            
+            # 解析引脚
+            port = pin[1] if pin[0] == 'P' else pin[0]
+            pin_num = int(pin[2:]) if pin[0] == 'P' else int(pin[1:])
+            
+            port_map = {"A": "PIOA", "B": "PIOB", "C": "PIOC", "D": "PIOD"}
+            
+            source_code.extend([
+                "    // GPIO初始化",
+                f"    PMC->PMC_PCER0 |= PMC_PCER0_PID11; // 使能PIO{port}时钟",
+                "    ",
+                f"    // 配置{pin}为{mode}",
+                f"    {port_map[port]}->PIO_PER |= (1 << {pin_num}); // 使能引脚",
+            ])
+            
+            if mode == "输出":
+                source_code.extend([
+                    f"    {port_map[port]}->PIO_OER |= (1 << {pin_num}); // 输出模式",
+                    f"    {port_map[port]}->PIO_{'SODR' if level == '高' else 'CODR'} |= (1 << {pin_num}); // 初始{level}电平"
+                ])
+            else:
+                source_code.append(f"    {port_map[port]}->PIO_ODR &= ~(1 << {pin_num}); // 输入模式")
+        elif peripheral == "UART":
+            baudrate = params.get('baudrate', 9600)
+            
+            source_code.extend([
+                "    // UART初始化",
+                "    PMC->PMC_PCER0 |= PMC_PCER0_PID8; // 使能UART0时钟",
+                "    PMC->PMC_PCER0 |= PMC_PCER0_PID11; // 使能PIOA时钟",
+                "    ",
+                "    // 配置GPIO",
+                "    PIOA->PIO_PER |= PIO_PA9 | PIO_PA10; // 使能引脚",
+                "    PIOA->PIO_ABCDSR[0] &= ~(PIO_PA9 | PIO_PA10); // 选择A功能",
+                "    PIOA->PIO_ABCDSR[1] &= ~(PIO_PA9 | PIO_PA10);",
+                "    ",
+                "    // 配置UART",
+                "    UART0->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXEN | UART_CR_TXEN; // 复位并使能收发",
+                "    UART0->UART_MR = UART_MR_CHMODE_NORMAL | UART_MR_PAR_NO; // 正常模式，无校验",
+                f"    UART0->UART_BRGR = (F_CPU / (16 * {baudrate})) - 1; // 波特率设置",
+                "    ",
+                "    // 使能UART",
+                "    UART0->UART_CR = UART_CR_RXEN | UART_CR_TXEN;"
+            ])
+        else:
+            source_code.extend([
+                f"    // {peripheral}初始化",
+                "    // 暂不支持该外设",
+                "    // 请参考ATSAME70数据手册和SDK示例"
+            ])
+        
+        source_code.append("}")
+        
+        return "\n".join(header_code), "\n".join(source_code)
+    
+    def highlight_syntax(self):
+        """增强的语法高亮"""
+        # 处理header_text和source_text两个文本框
+        for text_widget in [self.header_text, self.source_text]:
+            # 清除所有标签
+            text_widget.tag_remove("keyword", 1.0, tk.END)
+            text_widget.tag_remove("comment", 1.0, tk.END)
+            text_widget.tag_remove("string", 1.0, tk.END)
+            text_widget.tag_remove("function", 1.0, tk.END)
+            text_widget.tag_remove("preprocessor", 1.0, tk.END)
+            text_widget.tag_remove("number", 1.0, tk.END)
+            
+            # 配置标签颜色和样式
+            text_widget.tag_config("keyword", foreground="#0000ff", font=('Courier', 10, 'bold'))
+            text_widget.tag_config("comment", foreground="#008000", font=('Courier', 10, 'italic'))
+            text_widget.tag_config("string", foreground="#a31515")
+            text_widget.tag_config("function", foreground="#795e26", font=('Courier', 10, 'bold'))
+            text_widget.tag_config("preprocessor", foreground="#0000ff", font=('Courier', 10, 'bold'))
+            text_widget.tag_config("number", foreground="#098658")
+            
+            # 关键字列表
+            keywords = [
+                "void", "int", "char", "float", "double", "unsigned", "signed",
+                "struct", "class", "public", "private", "protected", "static",
+                "const", "volatile", "if", "else", "for", "while", "do",
+                "switch", "case", "default", "break", "continue", "return",
+                "typedef", "enum", "extern", "short", "long", "bool", "true", "false"
+            ]
+            
+            # 高亮预处理器指令
+            start = 1.0
+            while True:
+                pos = text_widget.search(r"#\w+", start, stopindex=tk.END, regexp=True)
+                if not pos:
+                    break
+                # 找到指令结束位置（行尾）
+                end = pos + " lineend"
+                text_widget.tag_add("preprocessor", pos, end)
+                start = end
+            
+            # 高亮关键字
+            for keyword in keywords:
+                pattern = r"\b" + keyword + r"\b"
+                start = 1.0
+                while True:
+                    pos = text_widget.search(pattern, start, stopindex=tk.END, regexp=True)
+                    if not pos:
+                        break
+                    end = pos + f"+{len(keyword)}c"
+                    text_widget.tag_add("keyword", pos, end)
+                    start = end
+            
+            # 高亮函数定义
+            start = 1.0
+            while True:
+                pos = text_widget.search(r"\b\w+\s+\w+\s*\(", start, stopindex=tk.END, regexp=True)
+                if not pos:
+                    break
+                # 找到函数名结束位置
+                match = re.search(r"\b\w+\s+(\w+)\s*\(", text_widget.get(pos, pos + "+50c"))
+                if match:
+                    func_name = match.group(1)
+                    end = pos + f"+{len(match.group(0)) - len(func_name)}c"
+                    text_widget.tag_add("function", pos, end)
+                start = pos + "+10c"  # 跳过当前匹配，继续搜索
+            
+            # 高亮注释
+            start = 1.0
+            while True:
+                pos = text_widget.search(r"//.*$", start, stopindex=tk.END, regexp=True)
+                if not pos:
+                    break
+                end = pos + " lineend"
+                text_widget.tag_add("comment", pos, end)
+                start = end
+            
+            # 高亮多行注释
+            start = 1.0
+            while True:
+                pos = text_widget.search(r"/\*", start, stopindex=tk.END, regexp=True)
+                if not pos:
+                    break
+                # 找到注释结束位置
+                end_pos = text_widget.search(r"\*/", pos, stopindex=tk.END, regexp=True)
+                if end_pos:
+                    end = end_pos + "+2c"  # 包含 */
+                    text_widget.tag_add("comment", pos, end)
+                    start = end
+                else:
+                    start = pos + "+1c"
+            
+            # 高亮字符串
+            start = 1.0
+            while True:
+                pos = text_widget.search(r'"[^"\\\\]*(\\\\.[^"\\\\]*)*"', start, stopindex=tk.END, regexp=True)
+                if not pos:
+                    break
+                # 找到字符串结束位置
+                # 计算字符串长度
+                match = re.search(r'"[^"\\]*(\\.[^"\\]*)*"', text_widget.get(pos, pos + "+100c"))
+                if match:
+                    end = pos + f"+{len(match.group(0))}c"
+                    text_widget.tag_add("string", pos, end)
+                    start = end
+                else:
+                    start = pos + "+1c"
+            
+            # 高亮数字
+            start = 1.0
+            while True:
+                pos = text_widget.search(r"\b\d+(\.\d+)?\b", start, stopindex=tk.END, regexp=True)
+                if not pos:
+                    break
+                # 找到数字结束位置
+                match = re.search(r"\b\d+(\.\d+)?\b", text_widget.get(pos, pos + "+20c"))
+                if match:
+                    end = pos + f"+{len(match.group(0))}c"
+                    text_widget.tag_add("number", pos, end)
+                    start = end
+                else:
+                    start = pos + "+1c"
+    
+    def copy_code(self):
+        """复制代码到剪贴板"""
+        # 获取头文件和源文件内容
+        header_code = self.header_text.get(1.0, tk.END).strip()
+        source_code = self.source_text.get(1.0, tk.END).strip()
+        
+        if not header_code or not source_code:
+            messagebox.showwarning("警告", "请先生成代码")
+            return
+        
+        # 复制头文件和源文件内容到剪贴板
+        source_ext = "cpp" if self.selected_language.get() == "C++语言" else "c"
+        clipboard_content = f"// 头文件 ({self.selected_peripheral.get().lower()}_driver.h)\n{header_code}\n\n// 源文件 ({self.selected_peripheral.get().lower()}_driver.{source_ext})\n{source_code}"
+        self.root.clipboard_clear()
+        self.root.clipboard_append(clipboard_content)
+        messagebox.showinfo("提示", "代码已复制到剪贴板")
+    
+    def on_mcu_change(self, event):
+        """当单片机型号改变时的处理"""
+        mcu = self.selected_mcu.get()
+        if mcu:
+            # 更新库函数选择
+            libs = self.lib_types.get(mcu, [])
+            self.lib_combobox['values'] = libs
+            if libs:
+                self.selected_lib.set(libs[0])
+            else:
+                self.selected_lib.set("")
+            
+            # 更新默认晶振频率
+            xtal = self.default_xtal.get(mcu, 16)
+            self.xtal_frequency.set(xtal)
+            
+            # 更新参数预览
+            self.update_preview()
+    
+    def on_peripheral_change(self, event):
+        """当外设接口改变时的处理"""
+        peripheral = self.selected_peripheral.get()
+        if peripheral:
+            # 清空参数面板
+            for widget in self.param_frame.winfo_children():
+                widget.destroy()
+            
+            # 根据选择的外设生成参数设置面板
+            self.create_peripheral_params(peripheral)
+            
+            # 更新参数预览
+            self.update_preview()
+    
+    def create_peripheral_params(self, peripheral):
+        """创建外设参数设置面板"""
+        params = self.peripheral_params.get(peripheral, {})
+        
+        if not params:
+            return
+        
+        # 创建参数表格
+        row = 0
+        for param_name, param_var in params.items():
+            # 美化参数名称
+            display_name = param_name.replace("_", " ").title()
+            
+            # 创建标签
+            label = ttk.Label(self.param_frame, text=display_name, font=self.label_font)
+            label.grid(row=row, column=0, sticky=tk.W, padx=5, pady=5)
+            
+            # 根据参数类型创建不同的控件
+            if param_name in ["mode", "level", "pull", "databits", "parity", "stopbits", "flowcontrol", "count_mode"]:
+                # 下拉选择框
+                values = []
+                if param_name == "mode":
+                    if peripheral == "GPIO":
+                        values = ["输入", "输出"]
+                    elif peripheral == "I2C":
+                        values = ["主模式", "从模式"]
+                    elif peripheral == "SPI":
+                        values = ["模式0", "模式1", "模式2", "模式3"]
+                elif param_name == "level":
+                    values = ["高电平", "低电平"]
+                elif param_name == "pull":
+                    values = ["无", "上拉", "下拉"]
+                elif param_name == "databits":
+                    values = ["8位", "7位", "9位"]
+                elif param_name == "parity":
+                    values = ["无校验", "奇校验", "偶校验"]
+                elif param_name == "stopbits":
+                    values = ["1位", "2位"]
+                elif param_name == "flowcontrol":
+                    values = ["关闭", "打开"]
+                elif param_name == "count_mode":
+                    values = ["向上计数", "向下计数", "中心对齐"]
+                
+                combobox = ttk.Combobox(
+                    self.param_frame, 
+                    textvariable=param_var, 
+                    values=values, 
+                    state="readonly",
+                    width=15
+                )
+                combobox.grid(row=row, column=1, sticky=tk.W, padx=5, pady=5)
+            else:
+                # 文本输入框
+                entry = ttk.Entry(self.param_frame, textvariable=param_var, width=15)
+                entry.grid(row=row, column=1, sticky=tk.W, padx=5, pady=5)
+            
+            row += 1
+    
+    def update_preview(self, *args):
+        """更新参数预览"""
+        preview = []
+        preview.append(f"单片机型号: {self.selected_mcu.get()}")
+        preview.append(f"库函数类型: {self.selected_lib.get()}")
+        preview.append(f"外部晶振: {self.xtal_frequency.get()} MHz")
+        preview.append(f"外设接口: {self.selected_peripheral.get()}")
+        preview.append(f"代码语言: {self.selected_language.get()}")
+        
+        # 添加外设参数
+        peripheral = self.selected_peripheral.get()
+        if peripheral:
+            preview.append("")
+            preview.append("外设参数:")
+            params = self.peripheral_params.get(peripheral, {})
+            for param_name, param_var in params.items():
+                display_name = param_name.replace("_", " ").title()
+                preview.append(f"  {display_name}: {param_var.get()}")
+        
+        # 更新预览文本
+        self.preview_text.delete(1.0, tk.END)
+        self.preview_text.insert(tk.END, "\n".join(preview))
+    
+    def save_code(self):
+        """保存代码到文件"""
+        # 获取头文件和源文件内容
+        header_code = self.header_text.get(1.0, tk.END).strip()
+        source_code = self.source_text.get(1.0, tk.END).strip()
+        
+        if not header_code or not source_code:
+            messagebox.showwarning("警告", "请先生成代码")
+            return
+        
+        # 获取保存路径
+        directory = filedialog.askdirectory(title="选择保存文件夹")
+        if not directory:
+            return
+        
+        # 获取当前选择的外设和语言
+        peripheral = self.selected_peripheral.get()
+        language = self.selected_language.get()
+        
+        # 确定源文件扩展名
+        if language == "C++语言":
+            source_ext = ".cpp"
+        else:
+            source_ext = ".c"
+        
+        # 生成文件名
+        header_file = f"{directory}\\{peripheral.lower()}_driver.h"
+        source_file = f"{directory}\\{peripheral.lower()}_driver{source_ext}"
+        
+        try:
+            # 保存头文件
+            with open(header_file, "w", encoding="utf-8") as f:
+                f.write(header_code)
+            
+            # 保存源文件
+            with open(source_file, "w", encoding="utf-8") as f:
+                f.write(source_code)
+            
+            messagebox.showinfo("提示", f"代码已保存到:\n{header_file}\n{source_file}")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存文件失败: {str(e)}")
+
+if __name__ == "__main__":
+    """主函数"""
+    root = tk.Tk()
+    app = MCUDriverGenerator(root)
+    root.mainloop()
