@@ -481,106 +481,466 @@ class MCUDriverGenerator:
         if is_cpp:
             header_code.append("class " + peripheral + "Driver {")
             header_code.append("public:")
+            header_code.append("    /**")
+            header_code.append("     * @brief 初始化外设")
+            header_code.append("     * @retval None")
+            header_code.append("     */")
             header_code.append("    static void init();")
             # 添加外设操作函数声明
             if peripheral == "GPIO":
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚为高电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void set_high();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚为低电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void set_low();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 翻转引脚电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void toggle();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 读取引脚电平")
+                header_code.append("     * @retval uint8_t 引脚电平值（0或1）")
+                header_code.append("     */")
                 header_code.append("    static uint8_t read();")
             elif peripheral == "UART":
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送一个字节数据")
+                header_code.append("     * @param byte 要发送的字节数据")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void send_byte(uint8_t byte);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送字符串")
+                header_code.append("     * @param str 要发送的字符串指针")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void send_string(const char* str);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 接收一个字节数据")
+                header_code.append("     * @retval uint8_t 接收到的字节数据")
+                header_code.append("     */")
                 header_code.append("    static uint8_t receive_byte();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 接收字符串")
+                header_code.append("     * @param buffer 接收缓冲区指针")
+                header_code.append("     * @param length 缓冲区长度")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void receive_string(char* buffer, uint16_t length);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 配置UART中断")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void config_interrupt();")
             elif peripheral == "I2C":
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送I2C起始信号")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void start();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送I2C停止信号")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void stop();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送I2C应答信号")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void send_ack();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送I2C非应答信号")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void send_nack();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 读取一个字节数据")
+                header_code.append("     * @retval uint8_t 读取到的字节数据")
+                header_code.append("     */")
                 header_code.append("    static uint8_t read_byte();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 写入一个字节数据")
+                header_code.append("     * @param byte 要写入的字节数据")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void write_byte(uint8_t byte);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 读取从设备寄存器值")
+                header_code.append("     * @param slave_addr 从设备地址")
+                header_code.append("     * @param reg_addr 寄存器地址")
+                header_code.append("     * @retval uint8_t 读取到的寄存器值")
+                header_code.append("     */")
                 header_code.append("    static uint8_t read_register(uint8_t slave_addr, uint8_t reg_addr);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 写入从设备寄存器值")
+                header_code.append("     * @param slave_addr 从设备地址")
+                header_code.append("     * @param reg_addr 寄存器地址")
+                header_code.append("     * @param data 要写入的数据")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void write_register(uint8_t slave_addr, uint8_t reg_addr, uint8_t data);")
             elif peripheral == "SPI":
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送一个字节数据")
+                header_code.append("     * @param byte 要发送的字节数据")
+                header_code.append("     * @retval uint8_t 接收到的字节数据")
+                header_code.append("     */")
                 header_code.append("    static uint8_t send_byte(uint8_t byte);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 接收一个字节数据")
+                header_code.append("     * @retval uint8_t 接收到的字节数据")
+                header_code.append("     */")
                 header_code.append("    static uint8_t receive_byte();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送和接收数据")
+                header_code.append("     * @param tx_data 发送数据缓冲区指针")
+                header_code.append("     * @param rx_data 接收数据缓冲区指针")
+                header_code.append("     * @param length 数据长度")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置CS引脚状态")
+                header_code.append("     * @param state CS引脚状态（0或1）")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void set_cs(uint8_t state);")
             elif peripheral == "CAN":
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送CAN数据帧")
+                header_code.append("     * @param id 帧ID")
+                header_code.append("     * @param data 数据缓冲区指针")
+                header_code.append("     * @param length 数据长度")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void send_frame(uint32_t id, uint8_t* data, uint8_t length);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 接收CAN数据帧")
+                header_code.append("     * @param id 帧ID指针")
+                header_code.append("     * @param data 数据缓冲区指针")
+                header_code.append("     * @param length 数据长度指针")
+                header_code.append("     * @retval uint8_t 接收状态")
+                header_code.append("     */")
                 header_code.append("    static uint8_t receive_frame(uint32_t* id, uint8_t* data, uint8_t* length);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 配置CAN过滤器")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void config_filter();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 配置CAN中断")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void config_interrupt();")
             elif peripheral == "ADC":
+                header_code.append("    /**")
+                header_code.append("     * @brief 开始ADC转换")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void start_conversion();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 读取ADC转换值")
+                header_code.append("     * @retval uint16_t ADC转换值")
+                header_code.append("     */")
                 header_code.append("    static uint16_t read_value();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 配置ADC中断")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void config_interrupt();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 将ADC值转换为电压")
+                header_code.append("     * @param value ADC转换值")
+                header_code.append("     * @retval float 转换后的电压值")
+                header_code.append("     */")
                 header_code.append("    static float convert_to_voltage(uint16_t value);")
             elif peripheral == "PWM":
+                header_code.append("    /**")
+                header_code.append("     * @brief 启动PWM输出")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void start();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 停止PWM输出")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void stop();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置PWM占空比")
+                header_code.append("     * @param duty 占空比值")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void set_duty(uint32_t duty);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置PWM频率")
+                header_code.append("     * @param frequency 频率值")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void set_frequency(uint32_t frequency);")
             elif peripheral == "TIM":
+                header_code.append("    /**")
+                header_code.append("     * @brief 启动定时器")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void start();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 停止定时器")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void stop();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 配置定时器中断")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void config_interrupt();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 获取定时器计数值")
+                header_code.append("     * @retval uint32_t 定时器计数值")
+                header_code.append("     */")
                 header_code.append("    static uint32_t get_count();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 重置定时器计数")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
                 header_code.append("    static void reset_count();")
             header_code.append("};")
             source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
             source_code.append("")
             source_code.append("void " + peripheral + "Driver::init() {")
         else:
+            header_code.append("/**")
+            header_code.append(" * @brief 初始化外设")
+            header_code.append(" * @retval None")
+            header_code.append(" */")
             header_code.append("void " + peripheral + "_init(void);")
             # 添加外设操作函数声明
             if peripheral == "GPIO":
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚为高电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void GPIO_set_high(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚为低电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void GPIO_set_low(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 翻转引脚电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void GPIO_toggle(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 读取引脚电平")
+                header_code.append(" * @retval uint8_t 引脚电平值（0或1）")
+                header_code.append(" */")
                 header_code.append("uint8_t GPIO_read(void);")
             elif peripheral == "UART":
+                header_code.append("/**")
+                header_code.append(" * @brief 发送一个字节数据")
+                header_code.append(" * @param byte 要发送的字节数据")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void UART_send_byte(uint8_t byte);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送字符串")
+                header_code.append(" * @param str 要发送的字符串指针")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void UART_send_string(const char* str);")
+                header_code.append("/**")
+                header_code.append(" * @brief 接收一个字节数据")
+                header_code.append(" * @retval uint8_t 接收到的字节数据")
+                header_code.append(" */")
                 header_code.append("uint8_t UART_receive_byte(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 接收字符串")
+                header_code.append(" * @param buffer 接收缓冲区指针")
+                header_code.append(" * @param length 缓冲区长度")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void UART_receive_string(char* buffer, uint16_t length);")
+                header_code.append("/**")
+                header_code.append(" * @brief 配置UART中断")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void UART_config_interrupt(void);")
             elif peripheral == "I2C":
+                header_code.append("/**")
+                header_code.append(" * @brief 发送I2C起始信号")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void I2C_start(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送I2C停止信号")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void I2C_stop(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送I2C应答信号")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void I2C_send_ack(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送I2C非应答信号")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void I2C_send_nack(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 读取一个字节数据")
+                header_code.append(" * @retval uint8_t 读取到的字节数据")
+                header_code.append(" */")
                 header_code.append("uint8_t I2C_read_byte(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 写入一个字节数据")
+                header_code.append(" * @param byte 要写入的字节数据")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void I2C_write_byte(uint8_t byte);")
+                header_code.append("/**")
+                header_code.append(" * @brief 读取从设备寄存器值")
+                header_code.append(" * @param slave_addr 从设备地址")
+                header_code.append(" * @param reg_addr 寄存器地址")
+                header_code.append(" * @retval uint8_t 读取到的寄存器值")
+                header_code.append(" */")
                 header_code.append("uint8_t I2C_read_register(uint8_t slave_addr, uint8_t reg_addr);")
+                header_code.append("/**")
+                header_code.append(" * @brief 写入从设备寄存器值")
+                header_code.append(" * @param slave_addr 从设备地址")
+                header_code.append(" * @param reg_addr 寄存器地址")
+                header_code.append(" * @param data 要写入的数据")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void I2C_write_register(uint8_t slave_addr, uint8_t reg_addr, uint8_t data);")
             elif peripheral == "SPI":
+                header_code.append("/**")
+                header_code.append(" * @brief 发送一个字节数据")
+                header_code.append(" * @param byte 要发送的字节数据")
+                header_code.append(" * @retval uint8_t 接收到的字节数据")
+                header_code.append(" */")
                 header_code.append("uint8_t SPI_send_byte(uint8_t byte);")
+                header_code.append("/**")
+                header_code.append(" * @brief 接收一个字节数据")
+                header_code.append(" * @retval uint8_t 接收到的字节数据")
+                header_code.append(" */")
                 header_code.append("uint8_t SPI_receive_byte(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送和接收数据")
+                header_code.append(" * @param tx_data 发送数据缓冲区指针")
+                header_code.append(" * @param rx_data 接收数据缓冲区指针")
+                header_code.append(" * @param length 数据长度")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void SPI_send_receive_data(uint8_t* tx_data, uint8_t* rx_data, uint16_t length);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置CS引脚状态")
+                header_code.append(" * @param state CS引脚状态（0或1）")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void SPI_set_cs(uint8_t state);")
             elif peripheral == "CAN":
+                header_code.append("/**")
+                header_code.append(" * @brief 发送CAN数据帧")
+                header_code.append(" * @param id 帧ID")
+                header_code.append(" * @param data 数据缓冲区指针")
+                header_code.append(" * @param length 数据长度")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void CAN_send_frame(uint32_t id, uint8_t* data, uint8_t length);")
+                header_code.append("/**")
+                header_code.append(" * @brief 接收CAN数据帧")
+                header_code.append(" * @param id 帧ID指针")
+                header_code.append(" * @param data 数据缓冲区指针")
+                header_code.append(" * @param length 数据长度指针")
+                header_code.append(" * @retval uint8_t 接收状态")
+                header_code.append(" */")
                 header_code.append("uint8_t CAN_receive_frame(uint32_t* id, uint8_t* data, uint8_t* length);")
+                header_code.append("/**")
+                header_code.append(" * @brief 配置CAN过滤器")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void CAN_config_filter(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 配置CAN中断")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void CAN_config_interrupt(void);")
             elif peripheral == "ADC":
+                header_code.append("/**")
+                header_code.append(" * @brief 开始ADC转换")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void ADC_start_conversion(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 读取ADC转换值")
+                header_code.append(" * @retval uint16_t ADC转换值")
+                header_code.append(" */")
                 header_code.append("uint16_t ADC_read_value(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 配置ADC中断")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void ADC_config_interrupt(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 将ADC值转换为电压")
+                header_code.append(" * @param value ADC转换值")
+                header_code.append(" * @retval float 转换后的电压值")
+                header_code.append(" */")
                 header_code.append("float ADC_convert_to_voltage(uint16_t value);")
             elif peripheral == "PWM":
+                header_code.append("/**")
+                header_code.append(" * @brief 启动PWM输出")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void PWM_start(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 停止PWM输出")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void PWM_stop(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置PWM占空比")
+                header_code.append(" * @param duty 占空比值")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void PWM_set_duty(uint32_t duty);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置PWM频率")
+                header_code.append(" * @param frequency 频率值")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void PWM_set_frequency(uint32_t frequency);")
             elif peripheral == "TIM":
+                header_code.append("/**")
+                header_code.append(" * @brief 启动定时器")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void TIM_start(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 停止定时器")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void TIM_stop(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 配置定时器中断")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void TIM_config_interrupt(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 获取定时器计数值")
+                header_code.append(" * @retval uint32_t 定时器计数值")
+                header_code.append(" */")
                 header_code.append("uint32_t TIM_get_count(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 重置定时器计数")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
                 header_code.append("void TIM_reset_count(void);")
             source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
             source_code.append("")
@@ -610,13 +970,13 @@ class MCUDriverGenerator:
                 pull_map = {"无": "", "上拉": "GPIO_Mode_IPU", "下拉": "GPIO_Mode_IPD"}
                 
                 source_code.extend([
-                    "    // GPIO初始化",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体",
+                    "    // GPIO初始化函数",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
                     "    ",
                     "    // 使能GPIO时钟",
-                    f"    RCC_APB2PeriphClockCmd({rcc_map[port]}, ENABLE);  // 使能{port_map[port]}时钟",
+                    f"    RCC_APB2PeriphClockCmd({rcc_map[port]}, ENABLE);  // 使能{port_map[port]}端口时钟",
                     "    ",
-                    "    // 配置GPIO引脚",
+                    "    // 配置GPIO引脚参数",
                     f"    GPIO_InitStruct.GPIO_Pin = {pin_map[pin_num]};  // 选择引脚{pin}",
                 ])
                 
@@ -630,10 +990,10 @@ class MCUDriverGenerator:
                     source_code.append("    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz")
                 
                 source_code.extend([
-                    f"    GPIO_Init({port_map[port]}, &GPIO_InitStruct);  // 应用GPIO配置",
+                    f"    GPIO_Init({port_map[port]}, &GPIO_InitStruct);  // 应用GPIO配置到{port_map[port]}端口",
                     "    ",
-                    "    // 初始输出电平",
-                    f"    {'GPIO_SetBits(' + port_map[port] + ', ' + pin_map[pin_num] + ');  // 设置初始电平为高电平' if output_level == '高电平' else 'GPIO_ResetBits(' + port_map[port] + ', ' + pin_map[pin_num] + ');  // 设置初始电平为低电平'}"
+                    "    // 设置初始输出电平",
+                    f"    {'GPIO_SetBits(' + port_map[port] + ', ' + pin_map[pin_num] + ');  // 设置{pin}引脚初始电平为高电平' if output_level == '高电平' else 'GPIO_ResetBits(' + port_map[port] + ', ' + pin_map[pin_num] + ');  // 设置{pin}引脚初始电平为低电平'}"
                 ])
             
             elif peripheral == "UART":
@@ -660,35 +1020,37 @@ class MCUDriverGenerator:
                 flow_control_map = {"关闭": "USART_HardwareFlowControl_None", "开启": "USART_HardwareFlowControl_RTS_CTS"}
                 
                 source_code.extend([
-                    "    // UART初始化",
-                    "    USART_InitTypeDef USART_InitStruct;",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;",
+                    "    // UART初始化函数",
+                    "    USART_InitTypeDef USART_InitStruct;  // 定义UART初始化结构体变量",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
                     "    ",
                     "    // 使能时钟",
-                    "    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);",
+                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);  // 使能USART1时钟",
+                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_{port_map[tx_port]}, ENABLE);  // 使能{port_map[tx_port]}时钟",
+                    f"    RCC_APB2PeriphClockCmd(RCC_APB2Periph_{port_map[rx_port]}, ENABLE);  // 使能{port_map[rx_port]}时钟",
                     "    ",
-                    "    // 复用功能初始化",
-                    "    // 配置GPIO",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[tx_num]}; // TX",
-                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;",
-                    "    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;",
-                    f"    GPIO_Init({port_map[tx_port]}, &GPIO_InitStruct);",
+                    "    // 配置TX引脚",
+                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[tx_num]};  // 选择{tx_pin}引脚作为TX",
+                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_AF_PP;  // 配置为复用推挽输出模式",
+                    "    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;  // 配置输出速度为50MHz",
+                    f"    GPIO_Init({port_map[tx_port]}, &GPIO_InitStruct);  // 应用GPIO配置",
                     "    ",
-                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[rx_num]}; // RX",
-                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;",
-                    f"    GPIO_Init({port_map[rx_port]}, &GPIO_InitStruct);",
+                    "    // 配置RX引脚",
+                    f"    GPIO_InitStruct.GPIO_Pin = {pin_map[rx_num]};  // 选择{rx_pin}引脚作为RX",
+                    "    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IN_FLOATING;  // 配置为浮空输入模式",
+                    f"    GPIO_Init({port_map[rx_port]}, &GPIO_InitStruct);  // 应用GPIO配置",
                     "    ",
-                    "    // 配置UART",
-                    f"    USART_InitStruct.USART_BaudRate = {baudrate};",
-                    f"    USART_InitStruct.USART_WordLength = {data_bits_map[data_bits]};",
-                    f"    USART_InitStruct.USART_StopBits = {stop_bits_map[stop_bits]};",
-                    f"    USART_InitStruct.USART_Parity = {parity_map[parity]};",
-                    f"    USART_InitStruct.USART_HardwareFlowControl = {flow_control_map[flow_control]};",
-                    "    USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;",
-                    "    USART_Init(USART1, &USART_InitStruct);",
+                    "    // 配置UART参数",
+                    f"    USART_InitStruct.USART_BaudRate = {baudrate};  // 设置波特率为{baudrate}",
+                    f"    USART_InitStruct.USART_WordLength = {data_bits_map[data_bits]};  // 设置数据位为{data_bits}",
+                    f"    USART_InitStruct.USART_StopBits = {stop_bits_map[stop_bits]};  // 设置停止位为{stop_bits}",
+                    f"    USART_InitStruct.USART_Parity = {parity_map[parity]};  // 设置校验位为{parity}",
+                    f"    USART_InitStruct.USART_HardwareFlowControl = {flow_control_map[flow_control]};  // 设置硬件流控制为{flow_control}",
+                    "    USART_InitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;  // 使能接收和发送模式",
+                    "    USART_Init(USART1, &USART_InitStruct);  // 应用UART配置",
                     "    ",
                     "    // 使能UART",
-                    "    USART_Cmd(USART1, ENABLE);"
+                    "    USART_Cmd(USART1, ENABLE);  // 使能USART1外设"
                 ])
             
             # 其他外设的标准库初始化代码...
@@ -711,15 +1073,15 @@ class MCUDriverGenerator:
                 pull_map = {"无": "GPIO_NOPULL", "上拉": "GPIO_PULLUP", "下拉": "GPIO_PULLDOWN"}
                 
                 source_code.extend([
-                    "    // GPIO初始化",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体",
+                    "    // GPIO初始化函数",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
                     "    ",
                     "    // 使能GPIO时钟",
-                    f"    __HAL_RCC_{port_map[port]}_CLK_ENABLE();  // 使能{port_map[port]}时钟",
+                    f"    __HAL_RCC_{port_map[port]}_CLK_ENABLE();  // 使能{port_map[port]}端口时钟",
                     "    ",
-                    "    // 配置GPIO引脚",
-                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{pin_num};  // 选择引脚{pin}",
-                    f"    GPIO_InitStruct.Mode = {mode_map[mode]};  // 配置{mode}模式",
+                    "    // 配置GPIO引脚参数",
+                    f"    GPIO_InitStruct.Pin = GPIO_PIN_{pin_num};  // 选择{pin}引脚",
+                    f"    GPIO_InitStruct.Mode = {mode_map[mode]};  // 配置为{mode}模式",
                     f"    GPIO_InitStruct.Pull = {pull_map[pull]};  // 配置{pull}电阻",
                 ])
                 
@@ -727,10 +1089,10 @@ class MCUDriverGenerator:
                     source_code.append("    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;  // 配置输出速度为中等")
                 
                 source_code.extend([
-                    f"    HAL_GPIO_Init({port_map[port]}, &GPIO_InitStruct);  // 应用GPIO配置",
+                    f"    HAL_GPIO_Init({port_map[port]}, &GPIO_InitStruct);  // 应用GPIO配置到{port_map[port]}端口",
                     "    ",
-                    "    // 初始输出电平",
-                    f"    HAL_GPIO_WritePin({port_map[port]}, GPIO_PIN_{pin_num}, {'GPIO_PIN_SET  // 设置初始电平为高电平' if output_level == '高电平' else 'GPIO_PIN_RESET  // 设置初始电平为低电平'});"
+                    "    // 设置初始输出电平",
+                    f"    HAL_GPIO_WritePin({port_map[port]}, GPIO_PIN_{pin_num}, {'GPIO_PIN_SET  // 设置{pin}引脚初始电平为高电平' if output_level == '高电平' else 'GPIO_PIN_RESET  // 设置{pin}引脚初始电平为低电平'});"
                 ])
             
             elif peripheral == "UART":
@@ -818,12 +1180,12 @@ class MCUDriverGenerator:
                 pull_map = {"无": "LL_GPIO_PULL_NO", "上拉": "LL_GPIO_PULL_UP", "下拉": "LL_GPIO_PULL_DOWN"}
                 
                 source_code.extend([
-                    "    // GPIO初始化",
+                    "    // GPIO初始化函数",
                     "    ",
                     "    // 使能GPIO时钟",
-                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{port.upper()});  // 使能{port_map[port]}时钟",
+                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{port.upper()});  // 使能{port_map[port]}端口时钟",
                     "    ",
-                    "    // 配置GPIO引脚",
+                    "    // 配置GPIO引脚参数",
                     f"    LL_GPIO_SetPinMode({port_map[port]}, LL_GPIO_PIN_{pin_num}, {mode_map[mode]});  // 配置{mode}模式",
                     f"    LL_GPIO_SetPinPull({port_map[port]}, LL_GPIO_PIN_{pin_num}, {pull_map[pull]});  // 配置{pull}电阻",
                 ])
@@ -833,8 +1195,8 @@ class MCUDriverGenerator:
                 
                 source_code.extend([
                     "    ",
-                    "    // 初始输出电平",
-                    f"    {'LL_GPIO_SetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置初始电平为高电平' if output_level == '高电平' else 'LL_GPIO_ResetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置初始电平为低电平'}"
+                    "    // 设置初始输出电平",
+                    f"    {'LL_GPIO_SetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置{pin}引脚初始电平为高电平' if output_level == '高电平' else 'LL_GPIO_ResetOutputPin(' + port_map[port] + ', LL_GPIO_PIN_' + str(pin_num) + ');  // 设置{pin}引脚初始电平为低电平'}"
                 ])
             
             elif peripheral == "UART":
@@ -859,37 +1221,38 @@ class MCUDriverGenerator:
                 stop_bits_map = {"1位": "LL_USART_STOPBITS_1", "2位": "LL_USART_STOPBITS_2"}
                 
                 source_code.extend([
-                    "    // UART初始化",
-                    "    GPIO_InitTypeDef GPIO_InitStruct;",
+                    "    // UART初始化函数",
+                    "    GPIO_InitTypeDef GPIO_InitStruct;  // 定义GPIO初始化结构体变量",
                     "    ",
                     "    // 使能时钟",
-                    "    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_USART1);",
-                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{tx_port.upper()});",
-                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{rx_port.upper()});",
+                    "    LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_USART1);  // 使能USART1时钟",
+                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{tx_port.upper()});  // 使能{port_map[tx_port]}时钟",
+                    f"    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_{rx_port.upper()});  // 使能{port_map[rx_port]}时钟",
                     "    ",
-                    "    // 配置GPIO",
-                    f"    LL_GPIO_SetPinMode({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_MODE_ALTERNATE);",
-                    f"    LL_GPIO_SetPinSpeed({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_SPEED_FREQ_HIGH);",
-                    f"    LL_GPIO_SetPinPull({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_PULL_UP);",
-                    f"    LL_GPIO_SetAFPin_8_15({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_AF_7); // USART1_TX",
+                    "    // 配置TX引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
+                    f"    LL_GPIO_SetPinSpeed({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_SPEED_FREQ_HIGH);  // 配置输出速度为高速",
+                    f"    LL_GPIO_SetPinPull({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_PULL_UP);  // 配置上拉电阻",
+                    f"    LL_GPIO_SetAFPin_8_15({port_map[tx_port]}, LL_GPIO_PIN_{tx_num}, LL_GPIO_AF_7);  // 配置为USART1_TX功能",
                     "    ",
-                    f"    LL_GPIO_SetPinMode({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_MODE_ALTERNATE);",
-                    f"    LL_GPIO_SetPinSpeed({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_SPEED_FREQ_HIGH);",
-                    f"    LL_GPIO_SetPinPull({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_PULL_UP);",
-                    f"    LL_GPIO_SetAFPin_8_15({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_AF_7); // USART1_RX",
+                    "    // 配置RX引脚",
+                    f"    LL_GPIO_SetPinMode({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_MODE_ALTERNATE);  // 配置为复用模式",
+                    f"    LL_GPIO_SetPinSpeed({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_SPEED_FREQ_HIGH);  // 配置输出速度为高速",
+                    f"    LL_GPIO_SetPinPull({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_PULL_UP);  // 配置上拉电阻",
+                    f"    LL_GPIO_SetAFPin_8_15({port_map[rx_port]}, LL_GPIO_PIN_{rx_num}, LL_GPIO_AF_7);  // 配置为USART1_RX功能",
                     "    ",
-                    "    // 配置UART",
-                    "    LL_USART_DeInit(USART1);",
-                    f"    LL_USART_SetBaudRate(USART1, SystemCoreClock, LL_USART_OVERSAMPLING_16, {baudrate});",
-                    f"    LL_USART_SetDataWidth(USART1, {data_bits_map[data_bits]});",
-                    f"    LL_USART_SetStopBitsLength(USART1, {stop_bits_map[stop_bits]});",
-                    f"    LL_USART_SetParity(USART1, {parity_map[parity]});",
-                    f"    LL_USART_SetTransferDirection(USART1, LL_USART_DIRECTION_TX_RX);",
-                    f"    LL_USART_SetHardwareFlowControl(USART1, LL_USART_HWCONTROL_NONE);",
+                    "    // 配置UART参数",
+                    "    LL_USART_DeInit(USART1);  // 复位USART1",
+                    f"    LL_USART_SetBaudRate(USART1, SystemCoreClock, LL_USART_OVERSAMPLING_16, {baudrate});  // 设置波特率为{baudrate}",
+                    f"    LL_USART_SetDataWidth(USART1, {data_bits_map[data_bits]});  // 设置数据位为{data_bits}",
+                    f"    LL_USART_SetStopBitsLength(USART1, {stop_bits_map[stop_bits]});  // 设置停止位为{stop_bits}",
+                    f"    LL_USART_SetParity(USART1, {parity_map[parity]});  // 设置校验位为{parity}",
+                    "    LL_USART_SetTransferDirection(USART1, LL_USART_DIRECTION_TX_RX);  // 使能接收和发送模式",
+                    "    LL_USART_SetHardwareFlowControl(USART1, LL_USART_HWCONTROL_NONE);  // 禁用硬件流控制",
                     "    ",
                     "    // 使能UART",
-                    "    LL_USART_Enable(USART1);",
-                    "    while (!LL_USART_IsActiveFlag_TEACK(USART1) || !LL_USART_IsActiveFlag_REACK(USART1));"
+                    "    LL_USART_Enable(USART1);  // 使能USART1",
+                    "    while (!LL_USART_IsActiveFlag_TEACK(USART1) || !LL_USART_IsActiveFlag_REACK(USART1));  // 等待发送和接收确认"
                 ])
         
         source_code.append("}")
@@ -905,21 +1268,37 @@ class MCUDriverGenerator:
                 port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
                 
                 source_code.extend([
+                    "/**",
+                    " * @brief 设置引脚为高电平",
+                    " * @retval None",
+                    " */",
                     f"void GPIO_driver::set_high() {{",
                     "    // 设置引脚高电平",
                     f"    {port_map[port]}->BSRR = GPIO_Pin_{pin_num};",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚为低电平",
+                    " * @retval None",
+                    " */",
                     f"void GPIO_driver::set_low() {{",
                     "    // 设置引脚低电平",
                     f"    {port_map[port]}->BRR = GPIO_Pin_{pin_num};",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 翻转引脚电平",
+                    " * @retval None",
+                    " */",
                     f"void GPIO_driver::toggle() {{",
                     "    // 翻转引脚电平",
                     f"    {port_map[port]}->ODR ^= GPIO_Pin_{pin_num};",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 读取引脚电平",
+                    " * @retval uint8_t 引脚电平值（0或1）",
+                    " */",
                     f"uint8_t GPIO_driver::read() {{",
                     "    // 读取引脚电平",
                     f"    return GPIO_ReadInputDataBit({port_map[port]}, GPIO_Pin_{pin_num});",
@@ -927,12 +1306,22 @@ class MCUDriverGenerator:
                 ])
             elif peripheral == "UART":
                 source_code.extend([
+                    "/**",
+                    " * @brief 发送一个字节数据",
+                    " * @param byte 要发送的字节数据",
+                    " * @retval None",
+                    " */",
                     "void UARTDriver::send_byte(uint8_t byte) {",
                     "    // 发送一个字节",
                     "    while (!LL_USART_IsActiveFlag_TXE(USART1));",
                     "    LL_USART_TransmitData8(USART1, byte);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 发送字符串",
+                    " * @param str 要发送的字符串指针",
+                    " * @retval None",
+                    " */",
                     "void UARTDriver::send_string(const char* str) {",
                     "    // 发送字符串",
                     "    while (*str) {",
@@ -940,12 +1329,22 @@ class MCUDriverGenerator:
                     "    }",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收一个字节数据",
+                    " * @retval uint8_t 接收到的字节数据",
+                    " */",
                     "uint8_t UARTDriver::receive_byte() {",
                     "    // 接收一个字节",
                     "    while (!LL_USART_IsActiveFlag_RXNE(USART1));",
                     "    return LL_USART_ReceiveData8(USART1);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收字符串",
+                    " * @param buffer 接收缓冲区指针",
+                    " * @param length 缓冲区长度",
+                    " * @retval None",
+                    " */",
                     "void UARTDriver::receive_string(char* buffer, uint16_t length) {",
                     "    // 接收字符串",
                     "    uint16_t i = 0;",
@@ -957,6 +1356,10 @@ class MCUDriverGenerator:
                     "    buffer[i] = '\\0';",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 配置UART中断",
+                    " * @retval None",
+                    " */",
                     "void UARTDriver::config_interrupt() {",
                     "    // 配置UART中断",
                     "    LL_USART_EnableIT_RXNE(USART1);",
@@ -973,21 +1376,37 @@ class MCUDriverGenerator:
                 port_map = {"A": "GPIOA", "B": "GPIOB", "C": "GPIOC", "D": "GPIOD"}
                 
                 source_code.extend([
+                    "/**",
+                    " * @brief 设置引脚为高电平",
+                    " * @retval None",
+                    " */",
                     f"void GPIO_set_high(void) {{",
                     "    // 设置引脚高电平",
                     f"    {port_map[port]}->BSRR = GPIO_Pin_{pin_num};",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚为低电平",
+                    " * @retval None",
+                    " */",
                     f"void GPIO_set_low(void) {{",
                     "    // 设置引脚低电平",
                     f"    {port_map[port]}->BRR = GPIO_Pin_{pin_num};",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 翻转引脚电平",
+                    " * @retval None",
+                    " */",
                     f"void GPIO_toggle(void) {{",
                     "    // 翻转引脚电平",
                     f"    {port_map[port]}->ODR ^= GPIO_Pin_{pin_num};",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 读取引脚电平",
+                    " * @retval uint8_t 引脚电平值（0或1）",
+                    " */",
                     f"uint8_t GPIO_read(void) {{",
                     "    // 读取引脚电平",
                     f"    return GPIO_ReadInputDataBit({port_map[port]}, GPIO_Pin_{pin_num});",
@@ -995,12 +1414,22 @@ class MCUDriverGenerator:
                 ])
             elif peripheral == "UART":
                 source_code.extend([
+                    "/**",
+                    " * @brief 发送一个字节数据",
+                    " * @param byte 要发送的字节数据",
+                    " * @retval None",
+                    " */",
                     "void UART_send_byte(uint8_t byte) {",
                     "    // 发送一个字节",
                     "    while (!LL_USART_IsActiveFlag_TXE(USART1));",
                     "    LL_USART_TransmitData8(USART1, byte);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 发送字符串",
+                    " * @param str 要发送的字符串指针",
+                    " * @retval None",
+                    " */",
                     "void UART_send_string(const char* str) {",
                     "    // 发送字符串",
                     "    while (*str) {",
@@ -1008,12 +1437,22 @@ class MCUDriverGenerator:
                     "    }",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收一个字节数据",
+                    " * @retval uint8_t 接收到的字节数据",
+                    " */",
                     "uint8_t UART_receive_byte(void) {",
                     "    // 接收一个字节",
                     "    while (!LL_USART_IsActiveFlag_RXNE(USART1));",
                     "    return LL_USART_ReceiveData8(USART1);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收字符串",
+                    " * @param buffer 接收缓冲区指针",
+                    " * @param length 缓冲区长度",
+                    " * @retval None",
+                    " */",
                     "void UART_receive_string(char* buffer, uint16_t length) {",
                     "    // 接收字符串",
                     "    uint16_t i = 0;",
@@ -1025,6 +1464,10 @@ class MCUDriverGenerator:
                     "    buffer[i] = '\\0';",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 配置UART中断",
+                    " * @retval None",
+                    " */",
                     "void UART_config_interrupt(void) {",
                     "    // 配置UART中断",
                     "    LL_USART_EnableIT_RXNE(USART1);",
@@ -1037,7 +1480,10 @@ class MCUDriverGenerator:
         if peripheral == "TIM":
             source_code.extend([
                 "",
-                "// 定时器中断处理函数",
+                "/**",
+                " * @brief 定时器中断处理函数",
+                " * @retval None",
+                " */",
                 "void TIM2_IRQHandler(void) {",
                 "    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {",
                 "        // 处理定时器中断",
@@ -1095,41 +1541,111 @@ class MCUDriverGenerator:
         if is_cpp:
             header_code.append("class " + peripheral + "Driver {")
             header_code.append("public:")
+            header_code.append("    /**")
+            header_code.append("     * @brief 初始化外设")
+            header_code.append("     * @retval None")
+            header_code.append("     */")
             header_code.append("    static void init();")
             if peripheral == "GPIO":
-                header_code.extend([
-                    "    static void setHigh();",
-                    "    static void setLow();",
-                    "    static void toggle();",
-                    "    static void set(uint8_t value);",
-                    "    static uint8_t get();"
-                ])
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚为高电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void setHigh();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚为低电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void setLow();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 翻转引脚电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void toggle();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚电平")
+                header_code.append("     * @param value 电平值（0或1）")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void set(uint8_t value);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 读取引脚电平")
+                header_code.append("     * @retval uint8_t 引脚电平值（0或1）")
+                header_code.append("     */")
+                header_code.append("    static uint8_t get();")
             elif peripheral == "UART":
-                header_code.extend([
-                    "    static void send(uint8_t data);",
-                    "    static uint8_t receive();",
-                    "    static void sendString(const char *str);"
-                ])
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送数据")
+                header_code.append("     * @param data 要发送的数据")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void send(uint8_t data);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 接收数据")
+                header_code.append("     * @retval uint8_t 接收到的数据")
+                header_code.append("     */")
+                header_code.append("    static uint8_t receive();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送字符串")
+                header_code.append("     * @param str 要发送的字符串指针")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void sendString(const char *str);")
             header_code.append("};")
             source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
             source_code.append("")
             source_code.append("void " + peripheral + "Driver::init() {")
         else:
+            header_code.append("/**")
+            header_code.append(" * @brief 初始化外设")
+            header_code.append(" * @retval None")
+            header_code.append(" */")
             header_code.append("void " + peripheral + "_init(void);")
             if peripheral == "GPIO":
-                header_code.extend([
-                    "void " + peripheral + "_setHigh(void);",
-                    "void " + peripheral + "_setLow(void);",
-                    "void " + peripheral + "_toggle(void);",
-                    "void " + peripheral + "_set(uint8_t value);",
-                    "uint8_t " + peripheral + "_get(void);"
-                ])
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚为高电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_setHigh(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚为低电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_setLow(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 翻转引脚电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_toggle(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚电平")
+                header_code.append(" * @param value 电平值（0或1）")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_set(uint8_t value);")
+                header_code.append("/**")
+                header_code.append(" * @brief 读取引脚电平")
+                header_code.append(" * @retval uint8_t 引脚电平值（0或1）")
+                header_code.append(" */")
+                header_code.append("uint8_t " + peripheral + "_get(void);")
             elif peripheral == "UART":
-                header_code.extend([
-                    "void " + peripheral + "_send(uint8_t data);",
-                    "uint8_t " + peripheral + "_receive(void);",
-                    "void " + peripheral + "_sendString(const char *str);"
-                ])
+                header_code.append("/**")
+                header_code.append(" * @brief 发送数据")
+                header_code.append(" * @param data 要发送的数据")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_send(uint8_t data);")
+                header_code.append("/**")
+                header_code.append(" * @brief 接收数据")
+                header_code.append(" * @retval uint8_t 接收到的数据")
+                header_code.append(" */")
+                header_code.append("uint8_t " + peripheral + "_receive(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送字符串")
+                header_code.append(" * @param str 要发送的字符串指针")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_sendString(const char *str);")
             source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
             source_code.append("")
             source_code.append("void " + peripheral + "_init(void) {")
@@ -1208,22 +1724,43 @@ class MCUDriverGenerator:
             if peripheral == "GPIO":
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 设置引脚为高电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::setHigh() {",
                     f"    {pin} = 1; // 设置引脚高电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚为低电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::setLow() {",
                     f"    {pin} = 0; // 设置引脚低电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 翻转引脚电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::toggle() {",
                     f"    {pin} = ~{pin}; // 翻转引脚电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚电平",
+                    " * @param value 电平值（0或1）",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::set(uint8_t value) {",
                     f"    {pin} = value; // 设置引脚电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 读取引脚电平",
+                    " * @retval uint8_t 引脚电平值（0或1）",
+                    " */",
                     "uint8_t " + peripheral + "Driver::get() {",
                     f"    return {pin}; // 读取引脚电平",
                     "}"
@@ -1231,18 +1768,32 @@ class MCUDriverGenerator:
             elif peripheral == "UART":
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 发送数据",
+                    " * @param data 要发送的数据",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::send(uint8_t data) {",
                     "    SBUF = data; // 发送数据",
                     "    while (!TI); // 等待发送完成",
                     "    TI = 0; // 清除发送标志",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收数据",
+                    " * @retval uint8_t 接收到的数据",
+                    " */",
                     "uint8_t " + peripheral + "Driver::receive() {",
                     "    while (!RI); // 等待接收完成",
                     "    RI = 0; // 清除接收标志",
                     "    return SBUF; // 返回接收到的数据",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 发送字符串",
+                    " * @param str 要发送的字符串指针",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::sendString(const char *str) {",
                     "    while (*str) {",
                     "        send(*str++);",
@@ -1253,22 +1804,43 @@ class MCUDriverGenerator:
             if peripheral == "GPIO":
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 设置引脚为高电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_setHigh(void) {",
                     f"    {pin} = 1; // 设置引脚高电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚为低电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_setLow(void) {",
                     f"    {pin} = 0; // 设置引脚低电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 翻转引脚电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_toggle(void) {",
                     f"    {pin} = ~{pin}; // 翻转引脚电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚电平",
+                    " * @param value 电平值（0或1）",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_set(uint8_t value) {",
                     f"    {pin} = value; // 设置引脚电平",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 读取引脚电平",
+                    " * @retval uint8_t 引脚电平值（0或1）",
+                    " */",
                     "uint8_t " + peripheral + "_get(void) {",
                     f"    return {pin}; // 读取引脚电平",
                     "}"
@@ -1276,18 +1848,32 @@ class MCUDriverGenerator:
             elif peripheral == "UART":
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 发送数据",
+                    " * @param data 要发送的数据",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_send(uint8_t data) {",
                     "    SBUF = data; // 发送数据",
                     "    while (!TI); // 等待发送完成",
                     "    TI = 0; // 清除发送标志",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收数据",
+                    " * @retval uint8_t 接收到的数据",
+                    " */",
                     "uint8_t " + peripheral + "_receive(void) {",
                     "    while (!RI); // 等待接收完成",
                     "    RI = 0; // 清除接收标志",
                     "    return SBUF; // 返回接收到的数据",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 发送字符串",
+                    " * @param str 要发送的字符串指针",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_sendString(const char *str) {",
                     "    while (*str) {",
                     "        " + peripheral + "_send(*str++);",
@@ -1299,7 +1885,10 @@ class MCUDriverGenerator:
         if peripheral in ["PWM", "TIM"]:
             source_code.extend([
                 "",
-                "// 定时器0中断处理函数",
+                "/**",
+                " * @brief 定时器0中断处理函数",
+                " * @retval None",
+                " */",
                 "void Timer0_ISR() interrupt 1 {",
                 "    static unsigned char count = 0;",
                 "    ",
@@ -1368,41 +1957,113 @@ class MCUDriverGenerator:
         if is_cpp:
             header_code.append("class " + peripheral + "Driver {")
             header_code.append("public:")
+            header_code.append("    /**")
+            header_code.append("     * @brief 初始化外设")
+            header_code.append("     * @retval esp_err_t 初始化结果")
+            header_code.append("     */")
             header_code.append("    static esp_err_t init();")
             if peripheral == "GPIO":
-                header_code.extend([
-                    "    static void setHigh();",
-                    "    static void setLow();",
-                    "    static void toggle();",
-                    "    static void set(uint8_t value);",
-                    "    static uint8_t get();"
-                ])
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚为高电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void setHigh();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚为低电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void setLow();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 翻转引脚电平")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void toggle();")
+                header_code.append("    /**")
+                header_code.append("     * @brief 设置引脚电平")
+                header_code.append("     * @param value 电平值（0或1）")
+                header_code.append("     * @retval None")
+                header_code.append("     */")
+                header_code.append("    static void set(uint8_t value);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 读取引脚电平")
+                header_code.append("     * @retval uint8_t 引脚电平值（0或1）")
+                header_code.append("     */")
+                header_code.append("    static uint8_t get();")
             elif peripheral == "UART":
-                header_code.extend([
-                    "    static esp_err_t send(uint8_t data);",
-                    "    static esp_err_t receive(uint8_t *data);",
-                    "    static esp_err_t sendString(const char *str);"
-                ])
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送数据")
+                header_code.append("     * @param data 要发送的数据")
+                header_code.append("     * @retval esp_err_t 发送结果")
+                header_code.append("     */")
+                header_code.append("    static esp_err_t send(uint8_t data);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 接收数据")
+                header_code.append("     * @param data 接收数据的缓冲区指针")
+                header_code.append("     * @retval esp_err_t 接收结果")
+                header_code.append("     */")
+                header_code.append("    static esp_err_t receive(uint8_t *data);")
+                header_code.append("    /**")
+                header_code.append("     * @brief 发送字符串")
+                header_code.append("     * @param str 要发送的字符串指针")
+                header_code.append("     * @retval esp_err_t 发送结果")
+                header_code.append("     */")
+                header_code.append("    static esp_err_t sendString(const char *str);")
             header_code.append("};")
             source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
             source_code.append("")
             source_code.append("esp_err_t " + peripheral + "Driver::init() {")
         else:
+            header_code.append("/**")
+            header_code.append(" * @brief 初始化外设")
+            header_code.append(" * @retval esp_err_t 初始化结果")
+            header_code.append(" */")
             header_code.append("esp_err_t " + peripheral + "_init(void);")
             if peripheral == "GPIO":
-                header_code.extend([
-                    "void " + peripheral + "_setHigh(void);",
-                    "void " + peripheral + "_setLow(void);",
-                    "void " + peripheral + "_toggle(void);",
-                    "void " + peripheral + "_set(uint8_t value);",
-                    "uint8_t " + peripheral + "_get(void);"
-                ])
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚为高电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_setHigh(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚为低电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_setLow(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 翻转引脚电平")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_toggle(void);")
+                header_code.append("/**")
+                header_code.append(" * @brief 设置引脚电平")
+                header_code.append(" * @param value 电平值（0或1）")
+                header_code.append(" * @retval None")
+                header_code.append(" */")
+                header_code.append("void " + peripheral + "_set(uint8_t value);")
+                header_code.append("/**")
+                header_code.append(" * @brief 读取引脚电平")
+                header_code.append(" * @retval uint8_t 引脚电平值（0或1）")
+                header_code.append(" */")
+                header_code.append("uint8_t " + peripheral + "_get(void);")
             elif peripheral == "UART":
-                header_code.extend([
-                    "esp_err_t " + peripheral + "_send(uint8_t data);",
-                    "esp_err_t " + peripheral + "_receive(uint8_t *data);",
-                    "esp_err_t " + peripheral + "_sendString(const char *str);"
-                ])
+                header_code.append("/**")
+                header_code.append(" * @brief 发送数据")
+                header_code.append(" * @param data 要发送的数据")
+                header_code.append(" * @retval esp_err_t 发送结果")
+                header_code.append(" */")
+                header_code.append("esp_err_t " + peripheral + "_send(uint8_t data);")
+                header_code.append("/**")
+                header_code.append(" * @brief 接收数据")
+                header_code.append(" * @param data 接收数据的缓冲区指针")
+                header_code.append(" * @retval esp_err_t 接收结果")
+                header_code.append(" */")
+                header_code.append("esp_err_t " + peripheral + "_receive(uint8_t *data);")
+                header_code.append("/**")
+                header_code.append(" * @brief 发送字符串")
+                header_code.append(" * @param str 要发送的字符串指针")
+                header_code.append(" * @retval esp_err_t 发送结果")
+                header_code.append(" */")
+                header_code.append("esp_err_t " + peripheral + "_sendString(const char *str);")
             source_code.append("#include \"" + peripheral.lower() + "_driver.h\"")
             source_code.append("")
             source_code.append("esp_err_t " + peripheral + "_init(void) {")
@@ -1552,22 +2213,43 @@ class MCUDriverGenerator:
             if is_cpp:
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 设置引脚为高电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::setHigh() {",
                     f"    gpio_set_level({pin}, 1);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚为低电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::setLow() {",
                     f"    gpio_set_level({pin}, 0);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 翻转引脚电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::toggle() {",
                     f"    gpio_set_level({pin}, !gpio_get_level({pin}));",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚电平",
+                    " * @param value 电平值（0或1）",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "Driver::set(uint8_t value) {",
                     f"    gpio_set_level({pin}, value);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 读取引脚电平",
+                    " * @retval uint8_t 引脚电平值（0或1）",
+                    " */",
                     "uint8_t " + peripheral + "Driver::get() {",
                     f"    return gpio_get_level({pin});",
                     "}"
@@ -1575,22 +2257,43 @@ class MCUDriverGenerator:
             else:
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 设置引脚为高电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_setHigh(void) {",
                     f"    gpio_set_level({pin}, 1);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚为低电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_setLow(void) {",
                     f"    gpio_set_level({pin}, 0);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 翻转引脚电平",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_toggle(void) {",
                     f"    gpio_set_level({pin}, !gpio_get_level({pin}));",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 设置引脚电平",
+                    " * @param value 电平值（0或1）",
+                    " * @retval None",
+                    " */",
                     "void " + peripheral + "_set(uint8_t value) {",
                     f"    gpio_set_level({pin}, value);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 读取引脚电平",
+                    " * @retval uint8_t 引脚电平值（0或1）",
+                    " */",
                     "uint8_t " + peripheral + "_get(void) {",
                     f"    return gpio_get_level({pin});",
                     "}"
@@ -1601,15 +2304,30 @@ class MCUDriverGenerator:
             if is_cpp:
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 发送数据",
+                    " * @param data 要发送的数据",
+                    " * @retval esp_err_t 发送结果",
+                    " */",
                     "esp_err_t " + peripheral + "Driver::send(uint8_t data) {",
                     "    return uart_write_bytes(UART_NUM_0, (const char *)&data, 1);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收数据",
+                    " * @param data 接收数据的缓冲区指针",
+                    " * @retval esp_err_t 接收结果",
+                    " */",
                     "esp_err_t " + peripheral + "Driver::receive(uint8_t *data) {",
                     "    int len = uart_read_bytes(UART_NUM_0, data, 1, pdMS_TO_TICKS(100));",
                     "    return len == 1 ? ESP_OK : ESP_FAIL;",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 发送字符串",
+                    " * @param str 要发送的字符串指针",
+                    " * @retval esp_err_t 发送结果",
+                    " */",
                     "esp_err_t " + peripheral + "Driver::sendString(const char *str) {",
                     "    return uart_write_bytes(UART_NUM_0, str, strlen(str));",
                     "}"
@@ -1617,15 +2335,30 @@ class MCUDriverGenerator:
             else:
                 source_code.extend([
                     "",
+                    "/**",
+                    " * @brief 发送数据",
+                    " * @param data 要发送的数据",
+                    " * @retval esp_err_t 发送结果",
+                    " */",
                     "esp_err_t " + peripheral + "_send(uint8_t data) {",
                     "    return uart_write_bytes(UART_NUM_0, (const char *)&data, 1);",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 接收数据",
+                    " * @param data 接收数据的缓冲区指针",
+                    " * @retval esp_err_t 接收结果",
+                    " */",
                     "esp_err_t " + peripheral + "_receive(uint8_t *data) {",
                     "    int len = uart_read_bytes(UART_NUM_0, data, 1, pdMS_TO_TICKS(100));",
                     "    return len == 1 ? ESP_OK : ESP_FAIL;",
                     "}",
                     "",
+                    "/**",
+                    " * @brief 发送字符串",
+                    " * @param str 要发送的字符串指针",
+                    " * @retval esp_err_t 发送结果",
+                    " */",
                     "esp_err_t " + peripheral + "_sendString(const char *str) {",
                     "    return uart_write_bytes(UART_NUM_0, str, strlen(str));",
                     "}"
